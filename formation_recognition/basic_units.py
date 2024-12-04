@@ -6,7 +6,8 @@ import numpy as np
 """
 
 SWARM_AVERAGE_SPEED = 10
-SWARM_MUTUAL_DISTANCE = 10
+SWARM_MUTUAL_DISTANCE = 10 # 一个空中集群基本的相互距离（避障、通信等相关）
+SWARM_NEAR_ANGLE_DEGREES = 20 # 可以判定为相似角度的最大差值阈值
 
 class ScaleSimMovements(object):
     def __init__(self, movements, avg_speed=SWARM_AVERAGE_SPEED, min_distance=SWARM_MUTUAL_DISTANCE):
@@ -61,6 +62,12 @@ class ObjTracks(object):
         else:  
             return np.mean(self.xs[-lookback:]), np.mean(self.ys[-lookback:])
     
+    def start_location(self):
+        if self.zs is not None:
+            return self.xs[0], self.ys[0], self.zs[0]
+        else:  
+            return self.xs[0], self.ys[0]
+
     def move_direction(self, lookback=1):
         if len(self.xs) < lookback:
             return None

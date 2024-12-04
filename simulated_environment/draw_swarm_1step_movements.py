@@ -93,6 +93,7 @@ def plot_coordinates_from_txt(folder_path):
             
             _start_xs = [_vec[0] for _vec in movements_vectors]
             _start_ys = [_vec[1] for _vec in movements_vectors]
+            
             _stop_xs = [_vec[2] for _vec in movements_vectors]
             _stop_ys = [_vec[3] for _vec in movements_vectors]
             

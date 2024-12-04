@@ -1,4 +1,9 @@
 import numpy as np
+import time
+from sklearn.cluster import DBSCAN
+import matplotlib.pyplot as plt
+from scipy.spatial import ConvexHull
+
 from formation_recognition import basic_units
 
 class SplitClusters(object):
@@ -7,27 +12,114 @@ class SplitClusters(object):
     def __init__(self, swarm_objs:basic_units.ObjTracks):
         self.swarm_objs = swarm_objs
         self.num_objs = len(swarm_objs)
-        self.clusters = []
+        self.clusters = None
         
         self._make_spat_features()
     
     def normalize_locs_dists(self, swarm_locs):
         _swarm_locs = np.array(swarm_locs).reshape(self.num_objs, -1)
         _mutual_dists = np.sqrt(np.sum((swarm_locs[:, np.newaxis, :] - swarm_locs[np.newaxis, :, :])**2, axis=2))
+        _mutual_dists = _mutual_dists[np.triu_indices(self.num_objs, k=1)]
 
-        import pdb; pdb.set_trace()
+        # 找出与集群基本距离接近的距离参数
+        _suitable_dist_min = basic_units.SWARM_MUTUAL_DISTANCE
+        _suitable_dist_max = basic_units.SWARM_MUTUAL_DISTANCE * 2.0
+
+        try:
+            _inrange_dists = _mutual_dists[np.logical_and(_mutual_dists >= _suitable_dist_min, _mutual_dists <= _suitable_dist_max)]
+            _inrange_dists_mean = np.mean(_inrange_dists)
+        except:
+            _inrange_dists_mean = basic_units.SWARM_MUTUAL_DISTANCE
+
+        return swarm_locs / _inrange_dists_mean
+    
+    def normalize_direct_angles(self, direct_xys):
+        _near_angle_rad = basic_units.SWARM_NEAR_ANGLE_DEGREES / 180 * np.pi
+        _direct_vec_scale = 1 / np.sqrt(2 * (1 - np.cos(_near_angle_rad)))
+
+        # 归一化方向向量
+        return direct_xys * _direct_vec_scale
+
+    def normalize_speeds(self, swarm_speeds):
+        _suitable_speed_min = basic_units.SWARM_AVERAGE_SPEED * 0.1
+        _suitable_speed_max = basic_units.SWARM_AVERAGE_SPEED * 1.5
+
+        _inrange_speeds = swarm_speeds[np.logical_and(swarm_speeds >= _suitable_speed_min, swarm_speeds <= _suitable_speed_max)]
+        _inrange_speeds_mean = np.mean(_inrange_speeds)
+
+        return swarm_speeds / _inrange_speeds_mean
 
     def _make_spat_features(self):
+        _tic = time.time()
+
         _swarm_feats = []
         
         _swarm_locs = np.array([_obj.last_location() for _obj in self.swarm_objs]).reshape(self.num_objs, -1)
         _swram_locs_dims = _swarm_locs.shape[1]
-        self.normalize_locs_dists(_swarm_locs)
+        _swarm_locs_norm = self.normalize_locs_dists(_swarm_locs)
+        _swarm_feats.append(_swarm_locs_norm)
         
         _swarm_directs = np.array([_obj.move_direction() for _obj in self.swarm_objs]).reshape(self.num_objs, -1)
         _swarm_directs_dims = _swarm_directs.shape[1]
+        _swarm_directs_norm = self.normalize_direct_angles(_swarm_directs)
+        _swarm_feats.append(_swarm_directs_norm)
         
         _swarm_speeds = np.array([_obj.move_speed() for _obj in self.swarm_objs]).reshape(self.num_objs, -1)
         _swarm_speeds_dims = _swarm_speeds.shape[1]
+        _swarm_speeds_norm = self.normalize_speeds(_swarm_speeds)
+        _swarm_feats.append(_swarm_speeds_norm)
 
-        import pdb; pdb.set_trace()
+        _swarm_comb_feats = np.concatenate(_swarm_feats, axis=1)
+        _dbscan = DBSCAN(eps=1.5, min_samples=1)
+
+        self.clusters = _dbscan.fit(_swarm_comb_feats)
+        _calcu_time = time.time() - _tic
+
+        print("Clustering time: {:.3f}s".format(_calcu_time))
+        
+    def show_clusters(self):
+        _clustering_labels = self.clusters.labels_
+        unique_labels = np.unique(_clustering_labels)
+        colors = ['red', 'blue', 'green', 'orange', 'purple', 'cyan', 'brown', 'pink', 'gray', 'olive']  # 颜色列表，支持多个簇
+        
+        _start_locs = np.array([_obj.start_location() for _obj in self.swarm_objs]).reshape(self.num_objs, -1)
+        _stop_locs = np.array([_obj.last_location() for _obj in self.swarm_objs]).reshape(self.num_objs, -1)
+
+        # 创建绘图
+        plt.figure(figsize=(8, 6))
+
+        for label in unique_labels:
+            # 获取属于当前聚类的点
+            cluster_points = _stop_locs[_clustering_labels == label]
+            
+            # 绘制聚类点
+            plt.scatter(cluster_points[:, 0], cluster_points[:, 1], 
+                        label=f"Cluster {label}", color=colors[label], s=100, edgecolor='black', zorder=2)
+            
+            # import pdb; pdb.set_trace()
+            for _start_x, _start_y, _stop_x, _stop_y in np.concatenate([_start_locs, _stop_locs], axis=1):
+                plt.arrow(_start_x, _start_y, _stop_x - _start_x, _stop_y - _start_y, head_width=0.1, head_length=0.1, fc='black', ec='black')
+            
+            if len(cluster_points) == 2:
+                # 如果聚类点数等于2，绘制连接这两个点的线段
+                plt.plot(cluster_points[:, 0], cluster_points[:, 1], 
+                        color=colors[label], linewidth=2, zorder=3)
+            
+            elif len(cluster_points) > 2:
+                # 如果聚类点数大于2，绘制外部包络曲线（凸包）
+                hull = ConvexHull(cluster_points)
+                hull_points = cluster_points[hull.vertices]
+                # 绘制凸包曲线
+                plt.fill(hull_points[:, 0], hull_points[:, 1], 
+                        color=colors[label], alpha=0.3, edgecolor=colors[label], zorder=1)
+        
+        # 图形美化
+        plt.title("Cluster Visualization with Convex Hulls", fontsize=14)
+        plt.xlabel("X Coordinate", fontsize=12)
+        plt.ylabel("Y Coordinate", fontsize=12)
+        plt.axhline(0, color='black', linewidth=0.5, linestyle="--")  # x轴参考线
+        plt.axvline(0, color='black', linewidth=0.5, linestyle="--")  # y轴参考线
+        plt.legend(fontsize=10)
+        plt.grid(True)
+        plt.show()
+        # import pdb; pdb.set_trace()

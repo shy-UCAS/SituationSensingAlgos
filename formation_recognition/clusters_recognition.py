@@ -10,12 +10,19 @@ class SplitClusters(object):
         self.clusters = []
         
         self._make_spat_features()
+    
+    def normalize_locs_dists(self, swarm_locs):
+        _swarm_locs = np.array(swarm_locs).reshape(self.num_objs, -1)
+        _mutual_dists = np.sqrt(np.sum((swarm_locs[:, np.newaxis, :] - swarm_locs[np.newaxis, :, :])**2, axis=2))
+
+        import pdb; pdb.set_trace()
 
     def _make_spat_features(self):
         _swarm_feats = []
         
         _swarm_locs = np.array([_obj.last_location() for _obj in self.swarm_objs]).reshape(self.num_objs, -1)
         _swram_locs_dims = _swarm_locs.shape[1]
+        self.normalize_locs_dists(_swarm_locs)
         
         _swarm_directs = np.array([_obj.move_direction() for _obj in self.swarm_objs]).reshape(self.num_objs, -1)
         _swarm_directs_dims = _swarm_directs.shape[1]

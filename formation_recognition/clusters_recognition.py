@@ -76,7 +76,7 @@ class SplitClusters(object):
         _calcu_time = time.time() - _tic
 
         print("Clustering time: {:.3f}s".format(_calcu_time))
-        
+    
     def show_clusters(self):
         _clustering_labels = self.clusters.labels_
         unique_labels = np.unique(_clustering_labels)

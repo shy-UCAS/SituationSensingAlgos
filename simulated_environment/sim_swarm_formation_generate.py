@@ -1,3 +1,8 @@
+import os, os.path as osp
+import shutil
+import yaml
+import json
+
 import numpy as np
 import random
 import matplotlib.pyplot as plt
@@ -23,7 +28,7 @@ class SwarmFormationGenerate(object):
             self.fleet_locs = self._echelon_formation(num_objs)
         elif formtype == 'wedge':
             self.fleet_locs = self._wedge_formation(num_objs)
-        elif formtype == 'circle':
+        elif formtype == 'circular':
             self.fleet_locs = self._circlar_formation(num_objs)
         
         self.fleet_locs = np.array(self.fleet_locs)
@@ -115,11 +120,6 @@ class SwarmFormationGenerate(object):
         _echelon_locs = np.dot(_vertical_locs, _rot_matrix)
 
         return _echelon_locs
-        
-    
-    def _circlar_formation(self, num_objs):
-        # 生成圆形队形
-        pass
     
     def show_formation(self):
         # 显示队形
@@ -139,3 +139,101 @@ class SwarmFormationGenerate(object):
         plt.grid(True)  # 添加网格
         axes.set_aspect('equal')  # 设置坐标轴比例相等
         plt.show()
+    
+    def save_to_file(self, filepath):
+        with open(filepath, 'wt') as wf:
+            # wf.write(f"formtype:{self.formtype}\n")
+            for loc in self.fleet_locs:
+                wf.write(f"{loc[0]},{loc[1]}\n")
+
+class MaskSwarmFormationDataset(object):
+    def __init__(self, num_objs:list[int], form_types:list[str], data_dir:str, num_samples:int=1000):
+        # 只针对包含3个以上成员的分组构建特定的队形
+        self.num_objs = num_objs
+        assert np.all(np.array(num_objs) > 2), "生成队形的群组中包含成员个数不能少于3个"
+
+        self.form_types = form_types
+        self.num_samples = num_samples
+
+        self.data_dir = data_dir
+        self.data_file = osp.join(self.data_dir, f"swarm_formations_{self.num_samples}.txt")
+
+        self.gene_parms = self._make_generate_parms()
+    
+    def _make_generate_parms(self):
+        # 生成队形参数
+        _gene_parms = [] # 给出每一条记录的生成参数
+
+        _num_forms = len(self.form_types)
+        _each_form_samples = int(self.num_samples / _num_forms)
+
+        for _form_type in self.form_types:
+            for _s_iter in range(_each_form_samples):
+                _fleet_size = random.choice(self.num_objs)
+                _gene_parms.append({'formtype': _form_type, 'num_objs': _fleet_size})
+
+        return _gene_parms
+    
+    def generate(self, data_file=None):
+        if data_file is None:
+            data_file = self.data_file
+
+        if osp.exists(data_file):
+            os.remove(data_file)
+
+        _gene_iter = 0 # 数据生成计数器
+        _app_quant_th = 100 # 每次追加100条数据，防止内存使用过量
+
+        while _gene_iter < self.num_samples:
+            _sect_fleet_locs = []
+
+            for _g_iter in range(_gene_iter, min(self.num_samples, _gene_iter + _app_quant_th)):
+                _cur_parm = self.gene_parms[_g_iter]
+
+                _form_type = _cur_parm['formtype']
+                _fleet_size = _cur_parm['num_objs']
+                _s_former = SwarmFormationGenerate(_fleet_size, _form_type)
+
+                _sect_fleet_locs.append({"formtype": _form_type, "fleet_size": _fleet_size,
+                                         "fleet_locs": [{'x': _x, 'y': _y} for _x, _y in _s_former.fleet_locs]})
+            
+            _gene_iter += _app_quant_th
+            # import pdb; pdb.set_trace()
+
+            with open(data_file, 'at') as wf:
+                yaml.dump(_sect_fleet_locs, wf, allow_unicode=True)
+
+            print("Generated fleet-locs %d - %d generated." % (_gene_iter - _app_quant_th, _gene_iter))
+
+    def generate_filewise(self, data_dir=None):
+        if data_dir is None:
+            data_dir = self.data_dir
+
+        if osp.exists(data_dir):
+            shutil.rmtree(data_dir)
+        os.makedirs(data_dir)
+
+        _dump_data_collection = []
+
+        for _iter, _parm in enumerate(self.gene_parms):
+            _form_type = _parm['formtype']
+            _fleet_size = _parm['num_objs']
+            _s_former = SwarmFormationGenerate(_fleet_size, _form_type)
+
+            _dump_data = {'formtype': _form_type, 'fleet_size': _fleet_size,
+                          'fleet_locs': [{'x': int(_x), 'y': int(_y)} for _x, _y in _s_former.fleet_locs]}
+            _dump_data_collection.append(_dump_data)
+
+            # _cur_data_file = osp.join(data_dir, f"form_%s_%05d.json" % (_form_type, _iter))
+
+            # with open(_cur_data_file, 'w') as wf:
+            #     # import pdb; pdb.set_trace()
+            #     json.dump([_dump_data], wf)
+            
+            if (_iter + 1) % 100 == 0:
+                print("Generated fleet-locs %d - %d generated." % (_iter - 99, _iter + 1))
+
+        with open(self.data_file, 'wt') as wf:
+            json.dump(_dump_data_collection, wf)
+
+        # import pdb; pdb.set_trace()

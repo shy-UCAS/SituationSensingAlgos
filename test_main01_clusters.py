@@ -64,6 +64,8 @@ if __name__ == "__main__":
         # 基于生成的队形数据，训练基于RNN的队形识别模型
         folder_path = osp.join(osp.dirname(osp.abspath(__file__)), 'data', 'auto_formation_recog')
         data_fpath = osp.join(folder_path, 'swarm_formations_4000.txt')
-
         form_types = ['vertical', 'horizontal', 'echelon', 'wedge']
-        form_dataset = form_rec.FormationDataset(form_types, data_fpath)
+        # form_dataset = form_rec.FormationDataset(form_types, data_fpath)
+
+        form_recog = form_rec.FormationRecognizer(form_types=form_types, num_layers=3)
+        form_recog.fit_on_data(data_fpath, epochs=10)

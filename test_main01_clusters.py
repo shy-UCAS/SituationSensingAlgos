@@ -1,12 +1,15 @@
 import os, os.path as osp
 import glob
+import time
+import numpy as np
 
 from simulated_environment import draw_swarm_1step_movements as draw_movs
 from formation_recognition import clusters_recognition as clus_rec
+from formation_recognition import formation_recognition as form_rec
 from simulated_environment import sim_swarm_formation_generate as sim_form
 
 if __name__ == "__main__":
-    func_sw = 5
+    func_sw = 6
     
     if func_sw == 1:
         # 示例使用
@@ -33,8 +36,10 @@ if __name__ == "__main__":
         folder_path = osp.join(osp.dirname(osp.abspath(__file__)), 'data', 'auto_formation_recog')
         form_locs_files = glob.glob(osp.join(folder_path, 'manual_formation_*.txt'))
         
-        sim_former = sim_form.SwarmFormationGenerate(3, 'horizontal')
-        # sim_former = sim_form.SwarmFormationGenerate(3, 'echelon')
+        # sim_former = sim_form.SwarmFormationGenerate(7, 'horizontal')
+        # sim_former = sim_form.SwarmFormationGenerate(7, 'vertical')
+        # sim_former = sim_form.SwarmFormationGenerate(7, 'echelon')
+        sim_former = sim_form.SwarmFormationGenerate(7, 'wedge')
         sim_former.show_formation()
     
     elif func_sw == 5:
@@ -49,5 +54,16 @@ if __name__ == "__main__":
         form_generator.generate_filewise(folder_path)
 
     elif func_sw == 6:
+        # orig_coords = np.random.uniform(-30, 30, size=(5, 2))
+        # direct_vec = np.random.uniform(-1, 1, size=(2,))
+
+        # _tic = time.time()
+        # spat_conv = form_rec.SpatialFeatConv(orig_coords, direction=direct_vec)
+        # print("[SpatialFeatExtract] %d locations in %.3fsecs, shape is %s" % (orig_coords.shape[0], time.time() - _tic, spat_conv.fleet_locs.shape))
+
         # 基于生成的队形数据，训练基于RNN的队形识别模型
-        pass
+        folder_path = osp.join(osp.dirname(osp.abspath(__file__)), 'data', 'auto_formation_recog')
+        data_fpath = osp.join(folder_path, 'swarm_formations_4000.txt')
+
+        form_types = ['vertical', 'horizontal', 'echelon', 'wedge']
+        form_dataset = form_rec.FormationDataset(form_types, data_fpath)

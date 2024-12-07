@@ -236,34 +236,42 @@ class FormationRecognizer(object):
         else:
             self.model_weights = None
 
-    def fit_on_data(self, data_file, batch_size=64, epochs=10):
+    def fit_on_data(self, data_file, batch_size=1, epochs=[4, 8, 12], lrs=[1e-3, 1e-5, 1e-6]):
         _train_dataset = FormationDataset(self.form_types, data_file)
 
         _criterion = torch.nn.CrossEntropyLoss()
-        _optimizer = torch.optim.Adam(self.model.parameters(), lr=1e-2)
+        # _optimizer = torch.optim.Adam(self.model.parameters(), lr=1e-3)
 
-        _load_num = 1e5
+        _iter_counter = 0
+
+        _census_period = 100
+        _census_loss = 0
+
         self.model.train()
 
-        for _epoch_i in range(epochs):
+        for _epoch_i in range(max(epochs)):
             _train_loader = DataLoader(_train_dataset, batch_size=batch_size, collate_fn=fleet_locs_collate_fn, shuffle=True)
 
+            _cur_lr = lrs[np.sum(_epoch_i > np.array(epochs))]
+            _cur_optimizer = torch.optim.Adam(self.model.parameters(), lr=_cur_lr)
+            
             for _batch_i, (_padded_data, _lens, _labels) in enumerate(_train_loader):
                 _outputs = self.model(_padded_data, _lens)
                 _loss = _criterion(_outputs, _labels)
+                _census_loss += _loss.item()
 
-                _optimizer.zero_grad()
+                _cur_optimizer.zero_grad()
                 _loss.backward()
-                _optimizer.step()
+                _cur_optimizer.step()
 
                 # print(f"Batch {_batch_i + 1}")
                 # print(f"Padded data shape: {_padded_data.shape}")
                 # print(f"Lengths: {_lens}")
                 # print(f"Labels: {_labels}")
-                print(f"Iter: {_batch_i}, Loss: {_loss.item()}")
 
-                # _load_num = _load_num - 1
-                # if _load_num <= 0:
-                #     break
+                _iter_counter = _iter_counter + 1
+                if _iter_counter % _census_period == 0:
+                    print(f"Epoch: {_epoch_i + 1}/{max(epochs)},Iter: {_iter_counter}, AvgLoss: {_census_loss/_census_period}")
+                    _census_loss = 0
         
         import pdb; pdb.set_trace()

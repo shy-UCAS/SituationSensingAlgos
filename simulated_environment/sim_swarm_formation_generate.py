@@ -29,7 +29,9 @@ class SwarmFormationGenerate(object):
         elif formtype == 'wedge':
             self.fleet_locs = self._wedge_formation(num_objs)
         elif formtype == 'circular':
-            self.fleet_locs = self._circlar_formation(num_objs)
+            self.fleet_locs = self._circular_formation(num_objs)
+        elif formtype == 'random':
+            self.fleet_locs = self._random_formation(num_objs)
         
         self.fleet_locs = np.array(self.fleet_locs)
     
@@ -116,10 +118,76 @@ class SwarmFormationGenerate(object):
         _rot_matrix = np.array([[np.cos(_tilt_rad), -np.sin(_tilt_rad)],
                                 [np.sin(_tilt_rad), np.cos(_tilt_rad)]])
 
-        # import pdb; pdb.set_trace()
         _echelon_locs = np.dot(_vertical_locs, _rot_matrix)
 
         return _echelon_locs
+    
+    def _circular_formation(self, num_objs):
+        _spacing_angle_min = 360 / (num_objs + 1)
+        _spacing_angle_max = 360 / (num_objs - 1) 
+        
+        # 首先生成num_obj个圆形角度划分
+        _spacing_angles = np.random.uniform(_spacing_angle_min, _spacing_angle_max, num_objs)
+        _spacing_angles = _spacing_angles / np.sum(_spacing_angles) * 360
+        
+        # 然后生成每个分割角度上对应的半径长度
+        _sim_radius_list = np.random.uniform(self.max_distance * 0.6 * 0.7, 
+                                             self.max_distance * 0.6 * 1.3, num_objs)
+        
+        _spacing_edges = []
+        for _e_iter in range(num_objs):
+            _cur_side_a = _sim_radius_list[_e_iter]
+            _cur_side_b = _sim_radius_list[(_e_iter + 1) % num_objs]
+            
+            _cur_side_c = np.sqrt(_cur_side_a ** 2 + _cur_side_b ** 2 - 2 * _cur_side_a * _cur_side_b * np.cos(np.deg2rad(_spacing_angles[_e_iter])))
+            _spacing_edges.append(_cur_side_c)
+        
+        _radius_rescale_factor = (self.min_distance + self.max_distance) / 2 / min(_spacing_edges)
+        _sim_radius_list = _sim_radius_list * _radius_rescale_factor
+        
+        # 然后根据生成的半径长度、旋转角度，生成每个对象的坐标
+        _accum_rot_angle = 0
+        _circular_locs = []
+        for _r_iter in range(num_objs):
+            _cur_x = _sim_radius_list[_r_iter] * np.cos(np.deg2rad(_accum_rot_angle))
+            _cur_y = _sim_radius_list[_r_iter] * np.sin(np.deg2rad(_accum_rot_angle))
+            _accum_rot_angle += _spacing_angles[_r_iter]
+            
+            _circular_locs.append([_cur_x, _cur_y])
+
+        _circular_locs = np.array(_circular_locs)
+        
+        _rand_rot_rad = np.deg2rad(np.random.uniform(0, 360))
+        _circular_locs = _circular_locs @ np.array([[np.cos(_rand_rot_rad), -np.sin(_rand_rot_rad)],
+                                                    [np.sin(_rand_rot_rad), np.cos(_rand_rot_rad)]])
+        
+        # 最后将生成的坐标进行随机旋转，并根据y轴坐标最小的点，平移到原点的位置上面
+        _min_y_idx = np.argmin(_circular_locs[:, 1])
+        _circular_locs = _circular_locs - _circular_locs[_min_y_idx]
+        
+         # import pdb; pdb.set_trace()
+        return _circular_locs
+    
+    def _random_formation(self, num_objs):
+        # 首先确定需要随机生成的区域的长度和宽度（行数和列数）
+        _num_cols = np.random.randint(2, int(np.ceil(np.sqrt(num_objs))))
+        _num_rows = int(np.ceil(num_objs / _num_cols))
+        
+        # 根据生成的列数和行数，确定随机分布空间区域的长度和宽度
+        _reg_width = self.min_distance * _num_cols
+        _reg_length = self.min_distance * _num_rows
+
+        # 生成随机分布空间分布坐标
+        _rand_xs = np.random.uniform(0, _reg_width, num_objs)
+        _rand_ys = np.random.uniform(0, _reg_length, num_objs)
+        
+        _rand_locs = np.stack([_rand_xs, _rand_ys], axis=1)
+        
+        # 根据区域中y值最小的坐标，平移所有坐标点，使得y值最小的点在原点
+        _min_y_idx = np.argmin(_rand_locs[:, 1])
+        _rand_locs = _rand_locs - _rand_locs[_min_y_idx]
+        
+        return _rand_locs
     
     def show_formation(self):
         # 显示队形

@@ -9,7 +9,7 @@ from formation_recognition import formation_recognition as form_rec
 from simulated_environment import sim_swarm_formation_generate as sim_form
 
 if __name__ == "__main__":
-    func_sw = 6
+    func_sw = 4
     
     if func_sw == 1:
         # 示例使用
@@ -39,18 +39,20 @@ if __name__ == "__main__":
         # sim_former = sim_form.SwarmFormationGenerate(7, 'horizontal')
         # sim_former = sim_form.SwarmFormationGenerate(7, 'vertical')
         # sim_former = sim_form.SwarmFormationGenerate(7, 'echelon')
-        sim_former = sim_form.SwarmFormationGenerate(7, 'wedge')
+        # sim_former = sim_form.SwarmFormationGenerate(7, 'wedge')
+        # sim_former = sim_form.SwarmFormationGenerate(7, 'circular')
+        sim_former = sim_form.SwarmFormationGenerate(7, 'random')
         sim_former.show_formation()
     
     elif func_sw == 5:
         # 利用上面的队形生成代码，生成一组包含典型队形的测试数据
-        gene_fleet_sizes = [3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
+        gene_fleet_sizes = [3, 4, 5, 6, 7, 8, 9, 10]
         gene_fleet_forms = ['horizontal', 'echelon', 'vertical', 'wedge']
 
         folder_path = osp.join(osp.dirname(osp.abspath(__file__)), 'data', 'auto_formation_recog')
         gene_data_file = osp.join(folder_path, 'gene_formation_data.txt')
 
-        form_generator = sim_form.MaskSwarmFormationDataset(gene_fleet_sizes, gene_fleet_forms, folder_path, num_samples=4000)
+        form_generator = sim_form.MaskSwarmFormationDataset(gene_fleet_sizes, gene_fleet_forms, folder_path, num_samples=8000)
         form_generator.generate_filewise(folder_path)
 
     elif func_sw == 6:
@@ -63,9 +65,10 @@ if __name__ == "__main__":
 
         # 基于生成的队形数据，训练基于RNN的队形识别模型
         folder_path = osp.join(osp.dirname(osp.abspath(__file__)), 'data', 'auto_formation_recog')
-        data_fpath = osp.join(folder_path, 'swarm_formations_4000.txt')
+        #data_fpath = osp.join(folder_path, 'swarm_formations_4000.txt')
+        data_fpath = osp.join(folder_path, 'swarm_formations_8000.txt')
         form_types = ['vertical', 'horizontal', 'echelon', 'wedge']
         # form_dataset = form_rec.FormationDataset(form_types, data_fpath)
 
         form_recog = form_rec.FormationRecognizer(form_types=form_types, num_layers=3)
-        form_recog.fit_on_data(data_fpath, epochs=10)
+        form_recog.fit_on_data(data_fpath, epochs=[6, 10, 14, 18], lrs=[1e-3, 1e-4, 1e-5, 1e-6])

@@ -236,9 +236,23 @@ class MaskSwarmFormationDataset(object):
         _each_form_samples = int(self.num_samples / _num_forms)
 
         for _form_type in self.form_types:
-            for _s_iter in range(_each_form_samples):
-                _fleet_size = random.choice(self.num_objs)
-                _gene_parms.append({'formtype': _form_type, 'num_objs': _fleet_size})
+            if _form_type == 'circular': # 圆形的队形，成员数量不能少于4个
+                _cur_num_objs = [_num for _num in self.num_objs if _num > 3]
+                
+                for _s_iter in range(_each_form_samples):
+                    _fleet_size = random.choice(_cur_num_objs)
+                    _gene_parms.append({'formtype': _form_type, 'num_objs': _fleet_size})
+                    
+            elif _form_type == 'random': # 如果是随机队形，成员的而数量不能少于5个
+                _cur_num_objs = [_num for _num in self.num_objs if _num > 4]
+                
+                for _s_iter in range(_each_form_samples):
+                    _fleet_size = random.choice(_cur_num_objs)
+                    _gene_parms.append({'formtype': _form_type, 'num_objs': _fleet_size})
+            else:
+                for _s_iter in range(_each_form_samples):
+                    _fleet_size = random.choice(self.num_objs)
+                    _gene_parms.append({'formtype': _form_type, 'num_objs': _fleet_size})
 
         return _gene_parms
     
@@ -277,10 +291,9 @@ class MaskSwarmFormationDataset(object):
         if data_dir is None:
             data_dir = self.data_dir
 
-        if osp.exists(data_dir):
-            shutil.rmtree(data_dir)
-        os.makedirs(data_dir)
-
+        if not osp.exists(data_dir):
+            os.makedirs(data_dir)
+        
         _dump_data_collection = []
 
         for _iter, _parm in enumerate(self.gene_parms):

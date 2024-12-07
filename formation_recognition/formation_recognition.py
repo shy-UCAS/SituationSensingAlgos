@@ -7,6 +7,7 @@ import torch.nn as nn
 import torch.optim as optim
 from torch.nn.utils.rnn import pad_sequence, pack_padded_sequence, pad_packed_sequence
 from torch.utils.data import Dataset, DataLoader
+from torch.optim.lr_scheduler import ReduceLROnPlateau
 
 import matplotlib.pyplot as plt
 
@@ -236,11 +237,13 @@ class FormationRecognizer(object):
         else:
             self.model_weights = None
 
-    def fit_on_data(self, data_file, batch_size=1, epochs=[4, 8, 12], lrs=[1e-3, 1e-5, 1e-6]):
-        _train_dataset = FormationDataset(self.form_types, data_file)
+    def fit_on_data(self, train_file, eval_file, batch_size=1, epochs=[4, 8, 12], lrs=[1e-3, 1e-5, 1e-6]):
+        _train_dataset = FormationDataset(self.form_types, train_file)
+        _eval_dataset = FormationDataset(self.form_types, eval_file)
 
         _criterion = torch.nn.CrossEntropyLoss()
-        # _optimizer = torch.optim.Adam(self.model.parameters(), lr=1e-3)
+        _optimizer = torch.optim.Adam(self.model.parameters(), lr=1e-3)
+        _schedular = ReduceLROnPlateau(_optimizer, mode='min', factor=0.1, patience=4, verbose=True)
 
         _iter_counter = 0
 
@@ -251,18 +254,19 @@ class FormationRecognizer(object):
 
         for _epoch_i in range(max(epochs)):
             _train_loader = DataLoader(_train_dataset, batch_size=batch_size, collate_fn=fleet_locs_collate_fn, shuffle=True)
+            _eval_loader = DataLoader(_eval_dataset, batch_size=batch_size, collate_fn=fleet_locs_collate_fn, shuffle=False)
 
             _cur_lr = lrs[np.sum(_epoch_i > np.array(epochs))]
-            _cur_optimizer = torch.optim.Adam(self.model.parameters(), lr=_cur_lr)
+            # _cur_optimizer = torch.optim.Adam(self.model.parameters(), lr=_cur_lr)
             
             for _batch_i, (_padded_data, _lens, _labels) in enumerate(_train_loader):
                 _outputs = self.model(_padded_data, _lens)
                 _loss = _criterion(_outputs, _labels)
                 _census_loss += _loss.item()
 
-                _cur_optimizer.zero_grad()
+                _optimizer.zero_grad()
                 _loss.backward()
-                _cur_optimizer.step()
+                _optimizer.step()
 
                 # print(f"Batch {_batch_i + 1}")
                 # print(f"Padded data shape: {_padded_data.shape}")
@@ -273,5 +277,19 @@ class FormationRecognizer(object):
                 if _iter_counter % _census_period == 0:
                     print(f"Epoch: {_epoch_i + 1}/{max(epochs)},Iter: {_iter_counter}, AvgLoss: {_census_loss/_census_period}")
                     _census_loss = 0
+            
+            # 一轮迭代之后，在eval数据集上面测试一下
+            _eval_loss_census = 0
+            for _batch_i, (_padded_data, _lens, _labels) in enumerate(_eval_loader):
+                _outputs = self.model(_padded_data, _lens)
+                _loss = _criterion(_outputs, _labels)
+                _eval_loss_census += _loss.item()
+            
+            _epoch_eval_loss = _eval_loss_census / len(_eval_loader)
+            if _epoch_eval_loss < 0.01:
+                break
+            
+            _schedular.step(_epoch_eval_loss)
+            print("[Epoch %d] eval loss: %g, learning rate set to %g" % (_epoch_i + 1, _epoch_eval_loss, _optimizer.param_groups[0]['lr']))
         
         import pdb; pdb.set_trace()

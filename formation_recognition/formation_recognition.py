@@ -1,3 +1,5 @@
+import os, os.path as osp
+
 import json
 import time
 import numpy as np
@@ -12,7 +14,7 @@ from torch.optim.lr_scheduler import ReduceLROnPlateau
 import matplotlib.pyplot as plt
 
 from sklearn.model_selection import train_test_split
-from sklearn.metrics import accuracy_score
+from sklearn.metrics import accuracy_score, classification_report
 
 class RNNClassifier(nn.Module):
     def __init__(self, input_size, hidden_size, output_size, num_layers):
@@ -237,7 +239,31 @@ class FormationRecognizer(object):
         else:
             self.model_weights = None
 
-    def fit_on_data(self, train_file, eval_file, batch_size=1, epochs=[4, 8, 12], lrs=[1e-3, 1e-5, 1e-6]):
+    def eval_accuracy(self, model, criterion, eval_loader):
+        # 一轮迭代之后，在eval数据集上面测试一下
+        _eval_loss_census = 0
+        
+        # import pdb; pdb.set_trace()
+        _orig_labels = eval_loader.dataset.labels
+        _pred_outputs = []
+        _pred_labels = []
+        
+        for _batch_i, (_padded_data, _lens, _labels) in enumerate(eval_loader):
+            _outputs = model(_padded_data, _lens)
+            _pred_outputs.append(_outputs)
+            
+            _loss = criterion(_outputs, _labels)
+            _eval_loss_census += _loss.item()
+        
+        _pred_outputs = torch.cat(_pred_outputs, axis=0)
+        _pred_labels = torch.argmax(_pred_outputs, axis=1).numpy()
+        _pred_report = classification_report(_orig_labels, _pred_labels, target_names=self.form_types, output_dict=True)
+        
+        _epoch_eval_loss = _eval_loss_census / len(eval_loader)
+        
+        return _epoch_eval_loss, _pred_report
+    
+    def fit_on_data(self, train_file, eval_file, weight_save_prefix, batch_size=1, epochs=[4, 8, 12], lrs=[1e-3, 1e-5, 1e-6]):
         _train_dataset = FormationDataset(self.form_types, train_file)
         _eval_dataset = FormationDataset(self.form_types, eval_file)
 
@@ -247,7 +273,7 @@ class FormationRecognizer(object):
 
         _iter_counter = 0
 
-        _census_period = 100
+        _census_period = 3000
         _census_loss = 0
 
         self.model.train()
@@ -257,7 +283,6 @@ class FormationRecognizer(object):
             _eval_loader = DataLoader(_eval_dataset, batch_size=batch_size, collate_fn=fleet_locs_collate_fn, shuffle=False)
 
             _cur_lr = lrs[np.sum(_epoch_i > np.array(epochs))]
-            # _cur_optimizer = torch.optim.Adam(self.model.parameters(), lr=_cur_lr)
             
             for _batch_i, (_padded_data, _lens, _labels) in enumerate(_train_loader):
                 _outputs = self.model(_padded_data, _lens)
@@ -278,18 +303,21 @@ class FormationRecognizer(object):
                     print(f"Epoch: {_epoch_i + 1}/{max(epochs)},Iter: {_iter_counter}, AvgLoss: {_census_loss/_census_period}")
                     _census_loss = 0
             
-            # 一轮迭代之后，在eval数据集上面测试一下
-            _eval_loss_census = 0
-            for _batch_i, (_padded_data, _lens, _labels) in enumerate(_eval_loader):
-                _outputs = self.model(_padded_data, _lens)
-                _loss = _criterion(_outputs, _labels)
-                _eval_loss_census += _loss.item()
+            _epoch_eval_loss, _eval_acc_report = self.eval_accuracy(self.model, _criterion, _eval_loader)
+            for _class_name, _metrics in _eval_acc_report.items():
+                print(f"{_class_name}: {_metrics}")
             
-            _epoch_eval_loss = _eval_loss_census / len(_eval_loader)
-            if _epoch_eval_loss < 0.01:
+            # if _epoch_eval_loss < 0.01:
+            #     break
+            if _eval_acc_report['accuracy'] >= 0.90:
                 break
             
             _schedular.step(_epoch_eval_loss)
-            print("[Epoch %d] eval loss: %g, learning rate set to %g" % (_epoch_i + 1, _epoch_eval_loss, _optimizer.param_groups[0]['lr']))
+            print("[Epoch %d] eval loss: %g, learning rate set to %g" 
+                  % (_epoch_i + 1, _epoch_eval_loss, _optimizer.param_groups[0]['lr']))
         
-        import pdb; pdb.set_trace()
+        # 保存训练好的模型
+        self.model_weights = self.model.state_dict()
+        
+        _weights_save_path = f"{weight_save_prefix}_{_iter_counter}.pth"
+        torch.save(self.model_weights, _weights_save_path)

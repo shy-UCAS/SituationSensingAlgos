@@ -64,7 +64,9 @@ if __name__ == "__main__":
         # print("[SpatialFeatExtract] %d locations in %.3fsecs, shape is %s" % (orig_coords.shape[0], time.time() - _tic, spat_conv.fleet_locs.shape))
 
         # 基于生成的队形数据，训练基于RNN的队形识别模型
-        folder_path = osp.join(osp.dirname(osp.abspath(__file__)), 'data', 'auto_formation_recog')
+        workspace_dir = osp.dirname(osp.abspath(__file__))
+        folder_path = osp.join(workspace_dir, 'data', 'auto_formation_recog')
+        
         #data_fpath = osp.join(folder_path, 'swarm_formations_4000.txt')
         data_fpath = osp.join(folder_path, 'swarm_formations_12000.txt')
         eval_fpath = osp.join(folder_path, 'swarm_formations_1000.txt')
@@ -72,4 +74,5 @@ if __name__ == "__main__":
         # form_dataset = form_rec.FormationDataset(form_types, data_fpath)
 
         form_recog = form_rec.FormationRecognizer(form_types=form_types, num_layers=3)
-        form_recog.fit_on_data(data_fpath, eval_fpath, epochs=[6, 10, 14, 18], lrs=[1e-3, 1e-4, 1e-5, 1e-6])
+        save_model_prefix = osp.join(workspace_dir, 'pretrained_weights', 'formation_recognition', 'form_recog_model')
+        form_recog.fit_on_data(data_fpath, eval_fpath, save_model_prefix, epochs=[6, 10, 14, 100], lrs=[1e-3, 1e-4, 1e-5, 1e-6])

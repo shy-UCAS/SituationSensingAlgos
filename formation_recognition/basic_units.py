@@ -56,6 +56,13 @@ class ObjTracks(object):
     def __len__(self):
         return len(self.xs)
     
+    def append_location(self, x, y, z=None, t=None):
+        self.xs = np.append(self.xs, x)
+        self.ys = np.append(self.ys, y)
+        
+        self.zs = np.append(self.zs, z) if (self.zs is not None and z is not None) else None
+        self.ts = np.append(self.ts, t) if (self.ts is not None and t is not None) else None
+    
     def last_location(self, lookback=1):
         if self.zs is not None:
             return np.mean(self.xs[-lookback:]), np.mean(self.ys[-lookback:]), np.mean(self.zs[-lookback:])

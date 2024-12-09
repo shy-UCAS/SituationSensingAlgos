@@ -76,3 +76,12 @@ if __name__ == "__main__":
         form_recog = form_rec.FormationRecognizer(form_types=form_types, num_layers=3)
         save_model_prefix = osp.join(workspace_dir, 'pretrained_weights', 'formation_recognition', 'form_recog_model')
         form_recog.fit_on_data(data_fpath, eval_fpath, save_model_prefix, epochs=[6, 10, 14, 100], lrs=[1e-3, 1e-4, 1e-5, 1e-6])
+
+    elif func_sw == 7:
+        workspace_dir = osp.dirname(osp.abspath(__file__))
+        weight_fpath = osp.join(workspace_dir, 'pretrained_weights', 'formation_recognition', 'form_recog_model_1200000.pth')
+        
+        form_types = ['vertical', 'horizontal', 'echelon', 'wedge', 'circular', 'random']
+        form_recog = form_rec.FormationRecognizer(form_types=form_types, num_layers=3, hidden_size=64, pretrained_weights=weight_fpath)
+        
+        

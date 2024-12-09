@@ -239,6 +239,54 @@ class FormationRecognizer(object):
         else:
             self.model_weights = None
 
+    def infer_formtype(self, fleet_locs, direct_vec=None):
+        _tic = time.time()
+        
+        if direct_vec is None:
+            direct_vec = np.array([0, -1])
+        
+        _sfeat_conv = SpatialFeatConv(fleet_locs, direct_vec)
+        _locs_feat = _sfeat_conv.fleet_locs
+        
+        # import pdb; pdb.set_trace()
+        _pred_outputs = self.model(torch.tensor(_locs_feat[np.newaxis, ...], dtype=torch.float32), torch.tensor([len(_locs_feat)]))
+        _pred_cls = torch.argmax(_pred_outputs, axis=1).numpy()
+        
+        print("Formtype infer in %.3fsecs, type: %s" % (time.time() - _tic, self.form_types[_pred_cls[0]]))
+        
+        return _pred_cls, self.form_types[_pred_cls[0]]
+    
+    def _get_direct_vec(self, prev_locs, cur_locs):
+        _pre2cur_movements = cur_locs - prev_locs
+        _mean_direct_vec = np.mean(_pre2cur_movements, axis=0)
+        _norm_dir = _mean_direct_vec / np.linalg.norm(_mean_direct_vec)
+        return _norm_dir
+    
+    def infer_movements(self, prev_locs, cur_locs, cluster_labels=None):
+        if cluster_labels is None:
+            _norm_direct_vec = self._get_direct_vec(prev_locs, cur_locs)
+            return self.infer_formtype(cur_locs, _norm_direct_vec)
+        
+        else:
+            _uniq_labels = np.unique(cluster_labels)
+            _num_clusters = len(_uniq_labels)
+            
+            _clusters_formtypes = []
+            for _c_i in range(_num_clusters):
+                _c_bools = cluster_labels == _uniq_labels[_c_i]
+                
+                if np.sum(_c_bools) <= 2:
+                    _clusters_formtypes.append(None)
+                else:
+                    _cur_clust_locs = cur_locs[_c_bools]
+                    _prev_clust_locs = prev_locs[_c_bools]
+                    
+                    _cur_direct_vec = self._get_direct_vec(_prev_clust_locs, _cur_clust_locs)
+                    _cur_formtype_clsidx, _cur_formtype_name = self.infer_formtype(_cur_clust_locs, _cur_direct_vec)
+                    _clusters_formtypes.append(_cur_formtype_clsidx)
+
+            return _clusters_formtypes
+
     def eval_accuracy(self, model, criterion, eval_loader):
         # 一轮迭代之后，在eval数据集上面测试一下
         _eval_loss_census = 0

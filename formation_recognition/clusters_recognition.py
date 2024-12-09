@@ -9,14 +9,18 @@ from formation_recognition import basic_units
 class SplitClusters(object):
     """ 基于给定的目标运动轨迹，进行聚类划分
     """
-    def __init__(self, swarm_objs:basic_units.ObjTracks):
+    def __init__(self, swarm_objs:basic_units.ObjTracks, memory_len:int=3):
         self.swarm_objs = swarm_objs
         self.num_objs = len(swarm_objs)
-        self.clusters = None
+        
+        self.anlz_trajs = []
+        self.clusters_list = []
+        self.memory_len = memory_len
         
         self._make_spat_features()
-    
+
     def normalize_locs_dists(self, swarm_locs):
+        # import pdb; pdb.set_trace()        
         _swarm_locs = np.array(swarm_locs).reshape(self.num_objs, -1)
         _mutual_dists = np.sqrt(np.sum((swarm_locs[:, np.newaxis, :] - swarm_locs[np.newaxis, :, :])**2, axis=2))
         _mutual_dists = _mutual_dists[np.triu_indices(self.num_objs, k=1)]
@@ -25,12 +29,13 @@ class SplitClusters(object):
         _suitable_dist_min = basic_units.SWARM_MUTUAL_DISTANCE
         _suitable_dist_max = basic_units.SWARM_MUTUAL_DISTANCE * 2.0
 
-        try:
-            _inrange_dists = _mutual_dists[np.logical_and(_mutual_dists >= _suitable_dist_min, _mutual_dists <= _suitable_dist_max)]
-            _inrange_dists_mean = np.mean(_inrange_dists)
-        except:
+        _inrange_dists = _mutual_dists[np.logical_and(_mutual_dists >= _suitable_dist_min, _mutual_dists <= _suitable_dist_max)]
+        
+        if len(_inrange_dists) <= 0:
             _inrange_dists_mean = basic_units.SWARM_MUTUAL_DISTANCE
-
+        else:
+            _inrange_dists_mean = np.mean(_inrange_dists)
+            
         return swarm_locs / _inrange_dists_mean
     
     def normalize_direct_angles(self, direct_xys):
@@ -45,9 +50,18 @@ class SplitClusters(object):
         _suitable_speed_max = basic_units.SWARM_AVERAGE_SPEED * 1.5
 
         _inrange_speeds = swarm_speeds[np.logical_and(swarm_speeds >= _suitable_speed_min, swarm_speeds <= _suitable_speed_max)]
-        _inrange_speeds_mean = np.mean(_inrange_speeds)
+        if len(_inrange_speeds) <= 0:
+            _inrange_speeds_mean = basic_units.SWARM_AVERAGE_SPEED
+        else:
+            _inrange_speeds_mean = np.mean(_inrange_speeds)
 
         return swarm_speeds / _inrange_speeds_mean
+    
+    def contiguous_split(self, swarm_locs):
+        self.anlz_trajs.append(swarm_locs)
+        
+        if len(self.anlz_trajs) > self.memory_len:
+            self.anlz_trajs = self.anlz_trajs[-self.anlz_trajs_len:]
 
     def _make_spat_features(self):
         _tic = time.time()
@@ -55,30 +69,43 @@ class SplitClusters(object):
         _swarm_feats = []
         
         _swarm_locs = np.array([_obj.last_location() for _obj in self.swarm_objs]).reshape(self.num_objs, -1)
-        _swram_locs_dims = _swarm_locs.shape[1]
+        # _swram_locs_dims = _swarm_locs.shape[1]
         _swarm_locs_norm = self.normalize_locs_dists(_swarm_locs)
         _swarm_feats.append(_swarm_locs_norm)
         
         _swarm_directs = np.array([_obj.move_direction() for _obj in self.swarm_objs]).reshape(self.num_objs, -1)
-        _swarm_directs_dims = _swarm_directs.shape[1]
+        # _swarm_directs_dims = _swarm_directs.shape[1]
         _swarm_directs_norm = self.normalize_direct_angles(_swarm_directs)
         _swarm_feats.append(_swarm_directs_norm)
         
         _swarm_speeds = np.array([_obj.move_speed() for _obj in self.swarm_objs]).reshape(self.num_objs, -1)
-        _swarm_speeds_dims = _swarm_speeds.shape[1]
+        # _swarm_speeds_dims = _swarm_speeds.shape[1]
         _swarm_speeds_norm = self.normalize_speeds(_swarm_speeds)
         _swarm_feats.append(_swarm_speeds_norm)
 
         _swarm_comb_feats = np.concatenate(_swarm_feats, axis=1)
-        _dbscan = DBSCAN(eps=1.5, min_samples=1)
+        
+        try:
+            _dbscan = DBSCAN(eps=1.5, min_samples=1)
+            _clusters = _dbscan.fit(_swarm_comb_feats)
+        except:
+            import pdb; pdb.set_trace()
 
-        self.clusters = _dbscan.fit(_swarm_comb_feats)
+        self.clusters_list.append(_clusters)
+        
+        if len(self.clusters_list) > self.memory_len:
+            self.clusters_list = self.clusters_list[-self.memory_len:]
+        
         _calcu_time = time.time() - _tic
 
         print("Clustering time: {:.3f}s".format(_calcu_time))
     
+    def last_clustering(self):
+        return self.clusters_list[-1].labels_
+    
     def show_clusters(self):
-        _clustering_labels = self.clusters.labels_
+        _clustering_labels = self.clusters_list[-1].labels_
+
         unique_labels = np.unique(_clustering_labels)
         colors = ['red', 'blue', 'green', 'orange', 'purple', 'cyan', 'brown', 'pink', 'gray', 'olive']  # 颜色列表，支持多个簇
         

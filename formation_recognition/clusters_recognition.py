@@ -68,21 +68,25 @@ class SplitClusters(object):
 
         _swarm_feats = []
         
+        # 计算所有对象的位置
         _swarm_locs = np.array([_obj.last_location() for _obj in self.swarm_objs]).reshape(self.num_objs, -1)
         # _swram_locs_dims = _swarm_locs.shape[1]
         _swarm_locs_norm = self.normalize_locs_dists(_swarm_locs)
         _swarm_feats.append(_swarm_locs_norm)
         
+        # 计算所有对象的方向
         _swarm_directs = np.array([_obj.move_direction() for _obj in self.swarm_objs]).reshape(self.num_objs, -1)
         # _swarm_directs_dims = _swarm_directs.shape[1]
         _swarm_directs_norm = self.normalize_direct_angles(_swarm_directs)
         _swarm_feats.append(_swarm_directs_norm)
         
+        # 计算所有对象的速度
         _swarm_speeds = np.array([_obj.move_speed() for _obj in self.swarm_objs]).reshape(self.num_objs, -1)
         # _swarm_speeds_dims = _swarm_speeds.shape[1]
         _swarm_speeds_norm = self.normalize_speeds(_swarm_speeds)
         _swarm_feats.append(_swarm_speeds_norm)
-
+        
+        # import pdb; pdb.set_trace()
         _swarm_comb_feats = np.concatenate(_swarm_feats, axis=1)
         
         try:

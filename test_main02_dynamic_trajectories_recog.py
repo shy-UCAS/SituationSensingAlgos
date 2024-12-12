@@ -73,7 +73,7 @@ class TrajectoryExhibitor(object):
         动画显示所有目标的运动轨迹。
         """
         
-        fig, ax = plt.subplots(figsize=(13, 13))
+        fig, ax = plt.subplots(figsize=(10, 10))
         ax.set_xlim(self.trajectories.iloc[:, ::2].min().min() - 1, 
                     self.trajectories.iloc[:, ::2].max().max() + 1)
         ax.set_ylim(self.trajectories.iloc[:, 1::2].min().min() - 1, 
@@ -83,6 +83,8 @@ class TrajectoryExhibitor(object):
         ax.set_xlabel("X Position")
         ax.set_ylabel("Y Position")
         ax.grid(True)
+
+        fig.tight_layout()
         
         # 补全输入的clustering聚类划分结果，在前面不足的部分补充None
         _clustering_pad_len = len(self.trajectories) - len(clusterings)
@@ -107,7 +109,7 @@ class TrajectoryExhibitor(object):
         def update(frame):
             clust_connect_lines.clear()
             clust_convex_hulls.clear()
-
+            formtype_labels.clear()
             
             # ax.clear()
             # ax.set_xlim(self.trajectories.iloc[:, ::2].min().min() - 1, 
@@ -135,6 +137,8 @@ class TrajectoryExhibitor(object):
             
             # print(f"time step: {time_step}")
             _cur_cluster_labels = _clustering_padded[time_step]
+            _cur_cluster_formtype = _formtypes_padded[time_step]
+
             if _cur_cluster_labels is not None:
                 _uniq_labels = np.unique(_cur_cluster_labels)
                 
@@ -151,24 +155,31 @@ class TrajectoryExhibitor(object):
                         _hull_poly = ax.fill(_hull_points[:, 0], _hull_points[:, 1], color=clust_colors[_lbl], linewidth=2, zorder=1)[0]
                         clust_convex_hulls.append(_hull_poly)
 
-            return lines + points + clust_connect_lines + clust_convex_hulls
+                        # 在当前的集群坐标旁边标记队形类型信息
+                        _formtype = _cur_cluster_formtype[_lbl]
+                        if _formtype is not None:
+                            _formtype_label = ax.text(_hull_points.mean(axis=0)[0], _hull_points.mean(axis=0)[1], f"{_formtype}", color='black', fontsize=12, zorder=5)
+                            formtype_labels.append(_formtype_label)
+
+            return lines + points + clust_connect_lines + clust_convex_hulls + formtype_labels
 
         # 动画帧
         frames = list(self.get_points())
 
         ani = FuncAnimation(fig, update, frames=enumerate(frames), interval=interval, blit=True)
         plt.show()
-    
+
 # 使用示例
 if __name__ == "__main__":
     # 假设文件名为 "trajectory.xlsx"
     _root_dir = osp.dirname(osp.abspath(__file__))
     _man_trajs_dir = osp.join(_root_dir, 'data', 'manual_formation_recog')
+
     _man_trajs_infos = [{'filename': 'fleet_form_trj01_shrink1.0.xlsx', 'scale': 7.0},
                         {'filename': 'fleet_form_trj02_shrink1.5.xlsx', 'scale': 12.0},
                         {'filename': 'fleet_form_trj03_shrink1.2.xlsx', 'scale': 14.0},]
     
-    _test_idx = 1
+    _test_idx = 2
     processor = TrajectoryExhibitor(osp.join(_man_trajs_dir, _man_trajs_infos[_test_idx]['filename']), _man_trajs_infos[_test_idx]['scale'])
     
     # 遍历轨迹点
@@ -177,9 +188,10 @@ if __name__ == "__main__":
     
     _clustering_lists = []
     _formtypes_lists = []
+    _formtype_names_lists = []
     
     workspace_dir = osp.dirname(osp.abspath(__file__))
-    weight_fpath = osp.join(workspace_dir, 'pretrained_weights', 'formation_recognition', 'form_recog_model_1200000.pth')
+    weight_fpath = osp.join(workspace_dir, 'pretrained_weights', 'formation_recognition', 'form_recog_model_192000.pth')
     
     form_types = ['vertical', 'horizontal', 'echelon', 'wedge', 'circular', 'random']
     _formtype_rec = form_rec.FormationRecognizer(form_types=form_types, num_layers=3, hidden_size=64, pretrained_weights=weight_fpath)
@@ -205,13 +217,16 @@ if __name__ == "__main__":
         _clustering_lists.append(_cur_clust_split.last_clustering())
         
         # predict the formtype of clusters
-        _clust_formtypes = _formtype_rec.infer_movements(_prev_positions, positions, _cur_clust_split.last_clustering())
+        _vis_formtype = False
+        _clust_formtypes, _clust_formtype_names = _formtype_rec.infer_movements(_prev_positions, positions, _cur_clust_split.last_clustering(), vis=_vis_formtype)
         _formtypes_lists.append(_clust_formtypes)
+        _formtype_names_lists.append(_clust_formtype_names)
         
         print("Timestep: %d, clustering: %s" % (time_step, _cur_clust_split.last_clustering()))
         
         _prev_positions = positions
         _trj_counter = _trj_counter + 1
     
+    # import pdb; pdb.set_trace()
     # 播放动画
-    processor.animate_trajectory(_clustering_lists, _formtypes_lists)
+    processor.animate_trajectory(_clustering_lists, _formtype_names_lists)

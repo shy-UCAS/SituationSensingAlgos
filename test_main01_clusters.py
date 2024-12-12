@@ -9,7 +9,11 @@ from formation_recognition import formation_recognition as form_rec
 from simulated_environment import sim_swarm_formation_generate as sim_form
 
 if __name__ == "__main__":
-    func_sw = 6
+    # func_sw = 2 # 绘制手工制作的聚类数据
+    # func_sw = 3 # 聚类划分
+    # func_sw = 4
+    # func_sw = 5 # 生成队形识别训练数据
+    func_sw = 6 # 训练队形识别模型
     
     if func_sw == 1:
         # 示例使用
@@ -17,7 +21,10 @@ if __name__ == "__main__":
         folder_path = osp.join(osp.dirname(osp.abspath(__file__)), 'data', 'manual_clusters')
         draw_movs.plot_coordinates_from_txt(folder_path)
     
-    elif func_sw == 2:
+    elif func_sw == 2: # 绘制手工制作的聚类数据（制作数据使用simulated_environment.py）
+        # 绘制样本单独运行下面的脚本：
+        # python .\simulated_environment\draw_swarm_1step_movements.py
+        # 默认会保存在 .\data\manual_clusters 文件夹里面
         folder_path = osp.join(osp.dirname(osp.abspath(__file__)), 'data', 'manual_clusters')
         draw_movs.plot_coordinates_from_txt_withparms(folder_path)
 
@@ -39,9 +46,9 @@ if __name__ == "__main__":
         # sim_former = sim_form.SwarmFormationGenerate(7, 'horizontal')
         # sim_former = sim_form.SwarmFormationGenerate(7, 'vertical')
         # sim_former = sim_form.SwarmFormationGenerate(7, 'echelon')
-        # sim_former = sim_form.SwarmFormationGenerate(7, 'wedge')
+        sim_former = sim_form.SwarmFormationGenerate(7, 'wedge')
         # sim_former = sim_form.SwarmFormationGenerate(7, 'circular')
-        sim_former = sim_form.SwarmFormationGenerate(5, 'random')
+        # sim_former = sim_form.SwarmFormationGenerate(5, 'random')
         sim_former.show_formation()
     
     elif func_sw == 5:
@@ -52,7 +59,7 @@ if __name__ == "__main__":
         folder_path = osp.join(osp.dirname(osp.abspath(__file__)), 'data', 'auto_formation_recog')
         gene_data_file = osp.join(folder_path, 'gene_formation_data.txt')
 
-        form_generator = sim_form.MaskSwarmFormationDataset(gene_fleet_sizes, gene_fleet_forms, folder_path, num_samples=12000)
+        form_generator = sim_form.MaskSwarmFormationDataset(gene_fleet_sizes, gene_fleet_forms, folder_path, num_samples=1000)
         form_generator.generate_filewise(folder_path)
 
     elif func_sw == 6:

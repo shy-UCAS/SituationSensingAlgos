@@ -5,9 +5,9 @@ import numpy as np
     一般的相互距离：10m左右
 """
 
-SWARM_AVERAGE_SPEED = 10
 SWARM_MUTUAL_DISTANCE = 10 # 一个空中集群基本的相互距离（避障、通信等相关）
 SWARM_NEAR_ANGLE_DEGREES = 20 # 可以判定为相似角度的最大差值阈值
+SWARM_AVERAGE_SPEED = 10 # 一个空中集群的平均速度
 
 class ScaleSimMovements(object):
     def __init__(self, movements, avg_speed=SWARM_AVERAGE_SPEED, min_distance=SWARM_MUTUAL_DISTANCE):

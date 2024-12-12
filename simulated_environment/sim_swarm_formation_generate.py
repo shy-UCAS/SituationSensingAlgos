@@ -44,7 +44,7 @@ class SwarmFormationGenerate(object):
         for _o_iter in range(num_objs - 1):
             _y_add_len = random.uniform(self.min_distance * 0.5, self.max_distance)
             _rnd_distance = random.uniform(max(_y_add_len, self.min_distance), self.max_distance)
-            _x_dev_len = random.uniform(0, self.min_distance * 0.8) * random.choice([-1, 1])
+            _x_dev_len = random.uniform(0, self.min_distance * 0.6) * random.choice([-1, 1])
             
             _cur_loc[1] = _cur_loc[1] + _y_add_len
             _cur_loc[0] = _x_dev_len
@@ -59,11 +59,11 @@ class SwarmFormationGenerate(object):
         _cur_loc = np.array([0, 0])
         
         _left_right_sign = random.choice([-1, 1])
-                
+        
         for _o_iter in range(num_objs - 1):
             _x_add_len = random.uniform(self.min_distance * 0.5, self.max_distance) * _left_right_sign
             _rnd_distance = random.uniform(max(_x_add_len, self.min_distance), self.max_distance)
-            _y_dev_len = random.uniform(0, self.min_distance * 0.8) * random.choice([-1, 1])
+            _y_dev_len = random.uniform(0, self.min_distance * 0.6) * random.choice([-1, 1])
             
             _cur_loc[0] = _cur_loc[0] + _x_add_len
             _cur_loc[1] = _y_dev_len
@@ -304,17 +304,9 @@ class MaskSwarmFormationDataset(object):
             _dump_data = {'formtype': _form_type, 'fleet_size': _fleet_size,
                           'fleet_locs': [{'x': int(_x), 'y': int(_y)} for _x, _y in _s_former.fleet_locs]}
             _dump_data_collection.append(_dump_data)
-
-            # _cur_data_file = osp.join(data_dir, f"form_%s_%05d.json" % (_form_type, _iter))
-
-            # with open(_cur_data_file, 'w') as wf:
-            #     # import pdb; pdb.set_trace()
-            #     json.dump([_dump_data], wf)
             
             if (_iter + 1) % 100 == 0:
                 print("Generated fleet-locs %d - %d generated." % (_iter - 99, _iter + 1))
 
         with open(self.data_file, 'wt') as wf:
             json.dump(_dump_data_collection, wf)
-
-        # import pdb; pdb.set_trace()

@@ -14,7 +14,7 @@ from torch.optim.lr_scheduler import ReduceLROnPlateau
 import matplotlib.pyplot as plt
 
 from sklearn.model_selection import train_test_split
-from sklearn.metrics import accuracy_score, classification_report
+from sklearn.metrics import accuracy_score, classification_report, confusion_matrix
 
 class RNNClassifier(nn.Module):
     def __init__(self, input_size, hidden_size, output_size, num_layers):
@@ -130,12 +130,12 @@ class SpatialFeatConv(object):
             locs = self.fleet_locs
         
         _max_y = np.max(np.abs(locs[:, 1]))
-        if np.abs(_max_y) > 1e-3:
-            locs[:, 1] = locs[:, 1] / _max_y
-
         _max_x = np.max(np.abs(locs[:, 0]))
-        if np.abs(_max_x) > 1e-3:
-            locs[:, 0] = locs[:, 0] / _max_x
+        _max_edge = max([_max_x, _max_y])
+
+        if _max_edge > 1e-3:
+            locs[:, 1] = locs[:, 1] / _max_edge
+            locs[:, 0] = locs[:, 0] / _max_edge
 
         return locs
     
@@ -239,7 +239,7 @@ class FormationRecognizer(object):
         else:
             self.model_weights = None
 
-    def infer_formtype(self, fleet_locs, direct_vec=None):
+    def infer_formtype(self, fleet_locs, direct_vec=None, vis=False):
         _tic = time.time()
         
         if direct_vec is None:
@@ -248,13 +248,29 @@ class FormationRecognizer(object):
         _sfeat_conv = SpatialFeatConv(fleet_locs, direct_vec)
         _locs_feat = _sfeat_conv.fleet_locs
         
-        # import pdb; pdb.set_trace()
         _pred_outputs = self.model(torch.tensor(_locs_feat[np.newaxis, ...], dtype=torch.float32), torch.tensor([len(_locs_feat)]))
         _pred_cls = torch.argmax(_pred_outputs, axis=1).numpy()
         
         print("Formtype infer in %.3fsecs, type: %s" % (time.time() - _tic, self.form_types[_pred_cls[0]]))
-        
-        return _pred_cls, self.form_types[_pred_cls[0]]
+        if vis:
+            fig, axes = plt.subplots(1, 2, figsize=(10, 6))
+            axes[0].scatter(fleet_locs[:, 0], fleet_locs[:, 1], c='blue', s=50, label="Origin")
+            axes[0].quiver(fleet_locs[:, 0], fleet_locs[:, 1], direct_vec[0], direct_vec[1], color='red', label="Direction")
+            axes[0].set_xlabel("X", fontsize=12)
+            axes[0].set_ylabel("Y", fontsize=12)
+            axes[0].legend(fontsize=12)
+            axes[0].axis('equal')
+
+            axes[1].scatter(_locs_feat[:, 0], _locs_feat[:, 1], c='blue', s=50, label="Featured")
+            axes[1].set_xlabel("X", fontsize=12)
+            axes[1].set_ylabel("Y", fontsize=12)
+            axes[1].legend(fontsize=12)
+            axes[1].axis('equal')
+
+            plt.tight_layout()
+            plt.show()
+
+        return _pred_cls[0], self.form_types[_pred_cls[0]]
     
     def _get_direct_vec(self, prev_locs, cur_locs):
         _pre2cur_movements = cur_locs - prev_locs
@@ -262,30 +278,35 @@ class FormationRecognizer(object):
         _norm_dir = _mean_direct_vec / np.linalg.norm(_mean_direct_vec)
         return _norm_dir
     
-    def infer_movements(self, prev_locs, cur_locs, cluster_labels=None):
+    def infer_movements(self, prev_locs, cur_locs, cluster_labels=None, vis=False):
         if cluster_labels is None:
             _norm_direct_vec = self._get_direct_vec(prev_locs, cur_locs)
-            return self.infer_formtype(cur_locs, _norm_direct_vec)
+            return self.infer_formtype(cur_locs, _norm_direct_vec, vis=vis)
         
         else:
             _uniq_labels = np.unique(cluster_labels)
             _num_clusters = len(_uniq_labels)
             
             _clusters_formtypes = []
+            _clusters_formtype_names = []
+
             for _c_i in range(_num_clusters):
                 _c_bools = cluster_labels == _uniq_labels[_c_i]
                 
                 if np.sum(_c_bools) <= 2:
                     _clusters_formtypes.append(None)
+                    _clusters_formtype_names.append(None)
                 else:
                     _cur_clust_locs = cur_locs[_c_bools]
                     _prev_clust_locs = prev_locs[_c_bools]
                     
                     _cur_direct_vec = self._get_direct_vec(_prev_clust_locs, _cur_clust_locs)
-                    _cur_formtype_clsidx, _cur_formtype_name = self.infer_formtype(_cur_clust_locs, _cur_direct_vec)
-                    _clusters_formtypes.append(_cur_formtype_clsidx)
+                    _cur_formtype_clsidx, _cur_formtype_name = self.infer_formtype(_cur_clust_locs, _cur_direct_vec, vis=vis)
 
-            return _clusters_formtypes
+                    _clusters_formtypes.append(_cur_formtype_clsidx)
+                    _clusters_formtype_names.append(_cur_formtype_name)
+
+            return _clusters_formtypes, _clusters_formtype_names
 
     def eval_accuracy(self, model, criterion, eval_loader):
         # 一轮迭代之后，在eval数据集上面测试一下
@@ -305,11 +326,14 @@ class FormationRecognizer(object):
         
         _pred_outputs = torch.cat(_pred_outputs, axis=0)
         _pred_labels = torch.argmax(_pred_outputs, axis=1).numpy()
+
         _pred_report = classification_report(_orig_labels, _pred_labels, target_names=self.form_types, output_dict=True)
+        # import pdb; pdb.set_trace()
+        _conf_matrix = confusion_matrix(_orig_labels, _pred_labels, labels=np.arange(len(self.form_types)))
         
         _epoch_eval_loss = _eval_loss_census / len(eval_loader)
         
-        return _epoch_eval_loss, _pred_report
+        return _epoch_eval_loss, _pred_report, _conf_matrix
     
     def fit_on_data(self, train_file, eval_file, weight_save_prefix, batch_size=1, epochs=[4, 8, 12], lrs=[1e-3, 1e-5, 1e-6]):
         _train_dataset = FormationDataset(self.form_types, train_file)
@@ -351,14 +375,14 @@ class FormationRecognizer(object):
                     print(f"Epoch: {_epoch_i + 1}/{max(epochs)},Iter: {_iter_counter}, AvgLoss: {_census_loss/_census_period}")
                     _census_loss = 0
             
-            _epoch_eval_loss, _eval_acc_report = self.eval_accuracy(self.model, _criterion, _eval_loader)
+            _epoch_eval_loss, _eval_acc_report, _eval_cm = self.eval_accuracy(self.model, _criterion, _eval_loader)
             for _class_name, _metrics in _eval_acc_report.items():
                 print(f"{_class_name}: {_metrics}")
             
-            # if _epoch_eval_loss < 0.01:
-            #     break
-            if _eval_acc_report['accuracy'] >= 0.90:
-                break
+            print(_eval_cm) # 打印展示各类分类结果的混淆矩阵
+            
+            if _eval_acc_report['accuracy'] >= 0.99:
+                break               
             
             _schedular.step(_epoch_eval_loss)
             print("[Epoch %d] eval loss: %g, learning rate set to %g" 

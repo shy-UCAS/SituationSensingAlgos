@@ -53,9 +53,10 @@ class SpatialFeatConv(object):
     """ 将位置数据转换为空间特征（局部相对位置，归一化等等）
         批注：针对2D空间中的坐标
     """
-    def __init__(self, fleet_locs, direction=None):
+    def __init__(self, fleet_locs, direction=None, vis=False):
         self.fleet_locs = np.array(fleet_locs, dtype=float)
         self.direct_vec = None
+        self.vis = vis
         # import pdb; pdb.set_trace()
 
         # 根据输入的方向向量，对编队的坐标进行旋转，使得新的坐标系中方向向量箭头冲下
@@ -86,9 +87,12 @@ class SpatialFeatConv(object):
         
         return locs - np.array([_min_x, _min_y])
 
-    def _align_with_direct(self, locs=None, direct=None, vis=False):
+    def _align_with_direct(self, locs=None, direct=None, vis=None):
         if locs is None:
             locs = self.fleet_locs
+        
+        if vis is None:
+            vis = self.vis
         
         if direct is None:
             direct = self.direct_vec
@@ -245,7 +249,7 @@ class FormationRecognizer(object):
         if direct_vec is None:
             direct_vec = np.array([0, -1])
         
-        _sfeat_conv = SpatialFeatConv(fleet_locs, direct_vec)
+        _sfeat_conv = SpatialFeatConv(fleet_locs, direct_vec, vis=vis)
         _locs_feat = _sfeat_conv.fleet_locs
         
         _pred_outputs = self.model(torch.tensor(_locs_feat[np.newaxis, ...], dtype=torch.float32), torch.tensor([len(_locs_feat)]))

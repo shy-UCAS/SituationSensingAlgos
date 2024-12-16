@@ -11,9 +11,9 @@ from simulated_environment import sim_swarm_formation_generate as sim_form
 if __name__ == "__main__":
     # func_sw = 2 # 绘制手工制作的聚类数据
     # func_sw = 3 # 聚类划分
-    # func_sw = 4
+    func_sw = 4 # 生成可视化单个队形类别
     # func_sw = 5 # 生成队形识别训练数据
-    func_sw = 6 # 训练队形识别模型
+    # func_sw = 6 # 训练队形识别模型
     
     if func_sw == 1:
         # 示例使用
@@ -46,11 +46,11 @@ if __name__ == "__main__":
         # sim_former = sim_form.SwarmFormationGenerate(7, 'horizontal')
         # sim_former = sim_form.SwarmFormationGenerate(7, 'vertical')
         # sim_former = sim_form.SwarmFormationGenerate(7, 'echelon')
-        sim_former = sim_form.SwarmFormationGenerate(7, 'wedge')
-        # sim_former = sim_form.SwarmFormationGenerate(7, 'circular')
+        # sim_former = sim_form.SwarmFormationGenerate(7, 'wedge')
+        sim_former = sim_form.SwarmFormationGenerate(7, 'circular')
         # sim_former = sim_form.SwarmFormationGenerate(5, 'random')
         sim_former.show_formation()
-    
+
     elif func_sw == 5:
         # 利用上面的队形生成代码，生成一组包含典型队形的测试数据
         gene_fleet_sizes = [3, 4, 5, 6, 7, 8, 9, 10]

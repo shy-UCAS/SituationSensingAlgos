@@ -111,17 +111,6 @@ class TrajectoryExhibitor(object):
             clust_convex_hulls.clear()
             formtype_labels.clear()
             
-            # ax.clear()
-            # ax.set_xlim(self.trajectories.iloc[:, ::2].min().min() - 1, 
-            #             self.trajectories.iloc[:, ::2].max().max() + 1)
-            # ax.set_ylim(self.trajectories.iloc[:, 1::2].min().min() - 1, 
-            #             self.trajectories.iloc[:, 1::2].max().max() + 1)
-            
-            # ax.set_title("Trajectory Animation")
-            # ax.set_xlabel("X Position")
-            # ax.set_ylabel("Y Position")
-            # ax.grid(True)
-            
             time_step, points_data = frame
             
             for i, (line, point) in enumerate(zip(lines, points)):
@@ -132,8 +121,6 @@ class TrajectoryExhibitor(object):
                 
                 line.set_data(x_data, y_data)
                 point.set_data([points_data[1][i, 0]], [points_data[1][i, 1]])
-            
-            # import pdb; pdb.set_trace()
             
             # print(f"time step: {time_step}")
             _cur_cluster_labels = _clustering_padded[time_step]
@@ -179,7 +166,7 @@ if __name__ == "__main__":
                         {'filename': 'fleet_form_trj02_shrink1.5.xlsx', 'scale': 12.0},
                         {'filename': 'fleet_form_trj03_shrink1.2.xlsx', 'scale': 14.0},]
     
-    _test_idx = 2
+    _test_idx = 1
     processor = TrajectoryExhibitor(osp.join(_man_trajs_dir, _man_trajs_infos[_test_idx]['filename']), _man_trajs_infos[_test_idx]['scale'])
     
     # 遍历轨迹点
@@ -227,6 +214,5 @@ if __name__ == "__main__":
         _prev_positions = positions
         _trj_counter = _trj_counter + 1
     
-    # import pdb; pdb.set_trace()
     # 播放动画
     processor.animate_trajectory(_clustering_lists, _formtype_names_lists)

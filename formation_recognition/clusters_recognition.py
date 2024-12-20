@@ -10,6 +10,8 @@ class SplitClusters(object):
     """ 基于给定的目标运动轨迹，进行聚类划分
     """
     def __init__(self, swarm_objs:basic_units.ObjTracks, memory_len:int=3):
+        self.glb_cfgs = basic_units.GlobalConfigs()
+
         self.swarm_objs = swarm_objs
         self.num_objs = len(swarm_objs)
         
@@ -26,32 +28,32 @@ class SplitClusters(object):
         _mutual_dists = _mutual_dists[np.triu_indices(self.num_objs, k=1)]
 
         # 找出与集群基本距离接近的距离参数
-        _suitable_dist_min = basic_units.SWARM_MUTUAL_DISTANCE
-        _suitable_dist_max = basic_units.SWARM_MUTUAL_DISTANCE * 2.0
+        _suitable_dist_min = self.glb_cfgs.SWARM_MUTUAL_DISTANCE
+        _suitable_dist_max = self.glb_cfgs.SWARM_MUTUAL_DISTANCE * 2.0
 
         _inrange_dists = _mutual_dists[np.logical_and(_mutual_dists >= _suitable_dist_min, _mutual_dists <= _suitable_dist_max)]
         
         if len(_inrange_dists) <= 0:
-            _inrange_dists_mean = basic_units.SWARM_MUTUAL_DISTANCE
+            _inrange_dists_mean = self.glb_cfgs.SWARM_MUTUAL_DISTANCE
         else:
             _inrange_dists_mean = np.mean(_inrange_dists)
             
         return swarm_locs / _inrange_dists_mean
     
     def normalize_direct_angles(self, direct_xys):
-        _near_angle_rad = basic_units.SWARM_NEAR_ANGLE_DEGREES / 180 * np.pi
+        _near_angle_rad = self.glb_cfgs.SWARM_NEAR_ANGLE_DEGREES / 180 * np.pi
         _direct_vec_scale = 1 / np.sqrt(2 * (1 - np.cos(_near_angle_rad)))
 
         # 归一化方向向量
         return direct_xys * _direct_vec_scale
 
     def normalize_speeds(self, swarm_speeds):
-        _suitable_speed_min = basic_units.SWARM_AVERAGE_SPEED * 0.1
-        _suitable_speed_max = basic_units.SWARM_AVERAGE_SPEED * 1.5
+        _suitable_speed_min = self.glb_cfgs.SWARM_AVERAGE_SPEED * 0.1
+        _suitable_speed_max = self.glb_cfgs.SWARM_AVERAGE_SPEED * 1.5
 
         _inrange_speeds = swarm_speeds[np.logical_and(swarm_speeds >= _suitable_speed_min, swarm_speeds <= _suitable_speed_max)]
         if len(_inrange_speeds) <= 0:
-            _inrange_speeds_mean = basic_units.SWARM_AVERAGE_SPEED
+            _inrange_speeds_mean = self.glb_cfgs.SWARM_AVERAGE_SPEED
         else:
             _inrange_speeds_mean = np.mean(_inrange_speeds)
 

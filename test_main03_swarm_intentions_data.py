@@ -83,7 +83,6 @@ class SwarmIntentExhibitor(object):
         _hq_ys = np.array([self.file_data[_hq_id + "_y"] for _hq_id in self.hq_ids])
         self.hq_locs = np.concatenate((_hq_xs[:, :1], _hq_ys[:, :1]), axis=1) * self.coord_scale
 
-        # import pdb; pdb.set_trace()
         # 可视化
         if vis:
             fig, ax = plt.subplots(1, 1, figsize=(10, 10))
@@ -114,6 +113,6 @@ class SwarmIntentExhibitor(object):
 
 if __name__ == "__main__":
     swarm_intent_dir = r"data\manual_intention_recog"
-    swarm_intent_file = osp.join(swarm_intent_dir, "fast_pass_through_no02.xlsx")
+    swarm_intent_file = osp.join(swarm_intent_dir, "fast_pass_through_no03.xlsx")
 
     intent_exh = SwarmIntentExhibitor(swarm_intent_file, vis=True)

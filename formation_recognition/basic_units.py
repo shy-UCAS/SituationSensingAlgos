@@ -1,19 +1,55 @@
+import os.path as osp
 import numpy as np
+import configparser
 
 """ 一些和无人机集群运动、轨迹相关的常量，例如：
     一般的运动速度：10m/s
     一般的相互距离：10m左右
 """
 
-SWARM_MUTUAL_DISTANCE = 10 # 一个空中集群基本的相互距离（避障、通信等相关）
-SWARM_NEAR_ANGLE_DEGREES = 20 # 可以判定为相似角度的最大差值阈值
-SWARM_AVERAGE_SPEED = 10 # 一个空中集群的平均速度
+# 构建指向上一级目录的路径来读取config.ini文件
+DEFAULT_CONFIG_FILE = osp.join(osp.dirname(osp.abspath(__file__)), '..', 'config.ini')
+
+class GlobalConfigs(object):
+    def __init__(self, cfg_file=DEFAULT_CONFIG_FILE):
+        self.SWARM_MUTUAL_DISTANCE = None
+        self.SWARM_NEAR_ANGLE_DEGREES = None
+        self.SWARM_AVERAGE_SPEED = None
+        self.DBSCAN_EPS = None
+
+        self._load_basic_cfgs()
+    
+    def _load_basic_cfgs(self, cfg_file=None):
+        if cfg_file is None:
+            cfg_file = DEFAULT_CONFIG_FILE
+        
+        _config = configparser.ConfigParser()
+
+        try:
+            _config.read(cfg_file)
+            self.SWARM_MUTUAL_DISTANCE = float(_config['DEFAULT']['SWARM_MUTUAL_DISTANCE'])
+            self.SWARM_NEAR_ANGLE_DEGREES = float(_config['DEFAULT']['SWARM_NEAR_ANGLE_DEGREES'])
+            self.SWARM_AVERAGE_SPEED = float(_config['DEFAULT']['SWARM_AVERAGE_SPEED'])
+            self.DBSCAN_EPS = float(_config['DEFAULT']['DBSCAN_EPS'])
+        
+        except (configparser.NoSectionError, configparser.NoOptionError) as e:
+            print(f"Error reading configuration file: {e}")
+            exit(1)
+        
+        except ValueError as e:
+            print(f"Error converting configuration values to float: {e}")
+            exit(1)
+    
+    def reload(self):
+        self._load_basic_cfgs()
 
 class ScaleSimMovements(object):
-    def __init__(self, movements, avg_speed=SWARM_AVERAGE_SPEED, min_distance=SWARM_MUTUAL_DISTANCE):
+    def __init__(self, movements, avg_speed=None, min_distance=None):
+        self.glb_cfgs = GlobalConfigs()
+
         self.movements = movements
-        self.avg_speed = avg_speed
-        self.min_distance = min_distance
+        self.avg_speed = self.glb_cfgs.SWARM_AVERAGE_SPEED if avg_speed is None else avg_speed
+        self.min_distance = self.glb_cfgs.SWARM_MUTUAL_DISTANCE if min_distance is None else min_distance
     
     def __len__(self):
         return len(self.movements)

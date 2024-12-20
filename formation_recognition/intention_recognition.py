@@ -5,3 +5,8 @@
     4）敌方与我方防御圈层之间的空间关系。
 """
 import numpy as np
+
+class SingleBehavior(object):
+    def __init__(self):
+        pass
+    

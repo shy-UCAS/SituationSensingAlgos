@@ -3,6 +3,7 @@ import glob
 import time
 import numpy as np
 
+from formation_recognition import basic_units
 from simulated_environment import draw_swarm_1step_movements as draw_movs
 from formation_recognition import clusters_recognition as clus_rec
 from formation_recognition import formation_recognition as form_rec
@@ -10,10 +11,11 @@ from simulated_environment import sim_swarm_formation_generate as sim_form
 
 if __name__ == "__main__":
     # func_sw = 2 # 绘制手工制作的聚类数据
-    # func_sw = 3 # 聚类划分
-    func_sw = 4 # 生成可视化单个队形类别
+    func_sw = 3 # 聚类划分
+    # func_sw = 4 # 生成可视化单个队形类别
     # func_sw = 5 # 生成队形识别训练数据
     # func_sw = 6 # 训练队形识别模型
+    func_sw = 8 # 测试参数加载功能的正确性
     
     if func_sw == 1:
         # 示例使用
@@ -37,6 +39,7 @@ if __name__ == "__main__":
             swarm_objs = draw_movs.load_swarm_from_txt(_trajs_file)
             swarm_cluster = clus_rec.SplitClusters(swarm_objs)
             swarm_cluster.show_clusters()
+            swarm_cluster.formated_cluster_result()
     
     elif func_sw == 4:
         # 对集群进行划分，并识别其中各个分组的队形样式
@@ -91,4 +94,10 @@ if __name__ == "__main__":
         form_types = ['vertical', 'horizontal', 'echelon', 'wedge', 'circular', 'random']
         form_recog = form_rec.FormationRecognizer(form_types=form_types, num_layers=3, hidden_size=64, pretrained_weights=weight_fpath)
         
-        
+    elif func_sw == 8:
+        _tic = time.time()
+        basic_cfg_parms = basic_units.GlobalConfigs()
+        basic_facility_parms = basic_units.BasicFacilities()
+        print("Params loaded in %.3fsecs" % (time.time() - _tic))
+
+        import pdb; pdb.set_trace()

@@ -16,6 +16,7 @@ from matplotlib.animation import FuncAnimation
 from formation_recognition import basic_units
 from formation_recognition import clusters_recognition as clus_rec
 from formation_recognition import formation_recognition as form_rec
+from formation_recognition import defence_breach_analyze as brch_anz
 
 class TrajectoryExhibitor(object):
     def __init__(self, file_path, coord_scale, interp_scale=3):
@@ -183,6 +184,8 @@ if __name__ == "__main__":
     form_types = ['vertical', 'horizontal', 'echelon', 'wedge', 'circular', 'random']
     _formtype_rec = form_rec.FormationRecognizer(form_types=form_types, num_layers=3, hidden_size=64, pretrained_weights=weight_fpath)
     
+    _ring_breacher = brch_anz.DefRingBreach()
+
     _prev_positions = None
     
     for time_step, positions in processor.get_points():
@@ -206,6 +209,11 @@ if __name__ == "__main__":
         # predict the formtype of clusters
         _vis_formtype = False
         _clust_formtypes, _clust_formtype_names = _formtype_rec.infer_movements(_prev_positions, positions, _cur_clust_split.last_clustering(), vis=_vis_formtype)
+        _formated_formtypes = _formtype_rec.formated_formtype_result(_cur_clust_split.last_clustering(), _clust_formtypes, _clust_formtype_names)
+
+        # analyze the defence ring breaching status
+        _r1_clust_idxs, _r2_clust_idxs, _brch_frmt_str = _ring_breacher.infer_rings_breach_groups(_trj_objs_list, _cur_clust_split.last_clustering(), formated_output=True)
+
         _formtypes_lists.append(_clust_formtypes)
         _formtype_names_lists.append(_clust_formtype_names)
         

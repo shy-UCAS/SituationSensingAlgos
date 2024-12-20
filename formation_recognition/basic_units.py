@@ -9,6 +9,7 @@ import configparser
 
 # 构建指向上一级目录的路径来读取config.ini文件
 DEFAULT_CONFIG_FILE = osp.join(osp.dirname(osp.abspath(__file__)), '..', 'config.ini')
+DEFAULT_FACILITIES_FILE = osp.join(osp.dirname(osp.abspath(__file__)), '..', 'facilities.ini')
 
 class GlobalConfigs(object):
     def __init__(self, cfg_file=DEFAULT_CONFIG_FILE):
@@ -42,6 +43,38 @@ class GlobalConfigs(object):
     
     def reload(self):
         self._load_basic_cfgs()
+
+class BasicFacilities(object):
+    def __init__(self, cfg_file=DEFAULT_FACILITIES_FILE):
+        self.RING1_XYS = None
+        self.RING2_XYS = None
+
+        self._load_rings_coords()
+    
+    def _load_rings_coords(self, cfg_file=None):
+        if cfg_file is None:
+            cfg_file = DEFAULT_FACILITIES_FILE
+
+        _config = configparser.ConfigParser()
+
+        try:
+            _config.read(cfg_file)
+
+            _ring1_xs = [float(_str) for _str in _config['DEFENCE_RING1']['BORDER_XS'].split(',')]
+            _ring1_ys = [float(_str) for _str in _config['DEFENCE_RING1']['BORDER_YS'].split(',')]
+            self.RING1_XYS = np.stack([np.array(_ring1_xs), np.array(_ring1_ys)], axis=1)
+
+            _ring2_xs = [float(_str) for _str in _config['DEFENCE_RING2']['BORDER_XS'].split(',')]
+            _ring2_ys = [float(_str) for _str in _config['DEFENCE_RING2']['BORDER_YS'].split(',')]
+            self.RING2_XYS = np.stack([np.array(_ring2_xs), np.array(_ring2_ys)], axis=1)
+        
+        except (configparser.NoSectionError, configparser.NoOptionError) as e:
+            print(f"Error reading defence ring file: {e}")
+            exit(1)
+        
+        except ValueError as e:
+            print(f"Error converting defence ring coords to float: {e}")
+            exit(1)
 
 class ScaleSimMovements(object):
     def __init__(self, movements, avg_speed=None, min_distance=None):

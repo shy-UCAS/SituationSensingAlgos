@@ -1,5 +1,7 @@
 import numpy as np
 import time
+import json
+
 from sklearn.cluster import DBSCAN
 import matplotlib.pyplot as plt
 from scipy.spatial import ConvexHull
@@ -91,11 +93,8 @@ class SplitClusters(object):
         # import pdb; pdb.set_trace()
         _swarm_comb_feats = np.concatenate(_swarm_feats, axis=1)
         
-        try:
-            _dbscan = DBSCAN(eps=1.5, min_samples=1)
-            _clusters = _dbscan.fit(_swarm_comb_feats)
-        except:
-            import pdb; pdb.set_trace()
+        _dbscan = DBSCAN(eps=1.5, min_samples=1)
+        _clusters = _dbscan.fit(_swarm_comb_feats)
 
         self.clusters_list.append(_clusters)
         
@@ -108,6 +107,11 @@ class SplitClusters(object):
     
     def last_clustering(self):
         return self.clusters_list[-1].labels_
+    
+    def formated_cluster_result(self):
+        _result_dict = {}
+        _result_json_str = json.dumps(_result_dict)
+        return _result_json_str
     
     def show_clusters(self):
         _clustering_labels = self.clusters_list[-1].labels_

@@ -285,7 +285,8 @@ class FormationRecognizer(object):
     def infer_movements(self, prev_locs, cur_locs, cluster_labels=None, vis=False):
         if cluster_labels is None:
             _norm_direct_vec = self._get_direct_vec(prev_locs, cur_locs)
-            return self.infer_formtype(cur_locs, _norm_direct_vec, vis=vis)
+            _formtype, _formtype_name = self.infer_formtype(cur_locs, _norm_direct_vec, vis=vis)
+            return [_formtype], [_formtype_name]
         
         else:
             _uniq_labels = np.unique(cluster_labels)
@@ -311,6 +312,9 @@ class FormationRecognizer(object):
                     _clusters_formtype_names.append(_cur_formtype_name)
 
             return _clusters_formtypes, _clusters_formtype_names
+    
+    def formated_formtype_result(self, clusters_labels, clusters_formtypes, clusters_formtype_names):
+        pass
 
     def eval_accuracy(self, model, criterion, eval_loader):
         # 一轮迭代之后，在eval数据集上面测试一下

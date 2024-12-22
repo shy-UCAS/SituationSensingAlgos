@@ -6,7 +6,8 @@
 """
 import numpy as np
 
+
 class SingleBehavior(object):
-    def __init__(self):
+    def __init__(self, ):
         pass
     

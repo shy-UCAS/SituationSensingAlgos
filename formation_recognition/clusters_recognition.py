@@ -109,8 +109,18 @@ class SplitClusters(object):
         return self.clusters_list[-1].labels_
     
     def formated_cluster_result(self):
-        _result_dict = {}
-        _result_json_str = json.dumps(_result_dict)
+        """
+        返回格式化后的集群分组结果
+        数据格式: {eSwarm1: [eUav1, eUav2, …], eSwarm2: [eUav5, eUav7, …]}
+        """
+        clusters = self.last_clustering()
+        enemy_uavs_clusters = {}
+
+        for idx, label in enumerate(clusters):
+            swarm_key = f"eSwarm{label + 1}"
+            enemy_uavs_clusters.setdefault(swarm_key, []).append(f"eUav{idx + 1}")
+            
+        _result_json_str = json.dumps(enemy_uavs_clusters, ensure_ascii=False)
         return _result_json_str
     
     def show_clusters(self):

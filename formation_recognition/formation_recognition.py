@@ -314,7 +314,30 @@ class FormationRecognizer(object):
             return _clusters_formtypes, _clusters_formtype_names
     
     def formated_formtype_result(self, clusters_labels, clusters_formtypes, clusters_formtype_names):
-        pass
+        """
+        格式化队形结果，生成敌方每一次队形调整时各个群组的队形类型信息。
+        """
+        swarms = []
+        unique_clusters = np.unique(clusters_labels)
+        
+        for idx, cluster_label in enumerate(unique_clusters):
+            swarm = {}
+            swarm['swarm_no'] = f'swarm{idx + 1}'
+            
+            # 假设 eUav 的编号从 1 开始，与 clusters_labels 的索引对应
+            members = [f'eUav{uav_idx + 1}' for uav_idx, label in enumerate(clusters_labels) if label == cluster_label]
+            swarm['members'] = members
+            
+            # 获取对应的队形类型，如果不存在则为 'none'
+            if clusters_formtype_names and cluster_label < len(clusters_formtype_names):
+                formtype = clusters_formtype_names[cluster_label]
+                swarm['formation'] = formtype if formtype else 'none'
+            else:
+                swarm['formation'] = 'none'
+            
+            swarms.append(swarm)
+        
+        return swarms
 
     def eval_accuracy(self, model, criterion, eval_loader):
         # 一轮迭代之后，在eval数据集上面测试一下

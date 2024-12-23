@@ -144,7 +144,6 @@ class SwarmIntentExhibitor(object):
             plt.show()
         return _obj_tracks
         
-
 if __name__ == "__main__":
     swarm_intent_dir = r"data\manual_intention_recog"
     # swarm_intent_file = osp.join(swarm_intent_dir, "fast_pass_through_no03.xlsx")
@@ -155,6 +154,7 @@ if __name__ == "__main__":
 
     test_sw = 1
     if test_sw == 1:
+        # 测试单个
         _test_objbehavs = [int_rec.SingleUavBehavior(_obj_trk, analyze_win=len(_obj_trk)) for _obj_trk in test_objtracks]
         
         print("[Speed Ups]:")

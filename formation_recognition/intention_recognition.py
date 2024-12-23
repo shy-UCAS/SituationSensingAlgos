@@ -25,7 +25,6 @@ class SingleUavBehavior(object):
         _movements = self.track.move_speeds(self.win_size - 1)
         _half_win_size = int(self.win_size / 2)
         
-        # import pdb; pdb.set_trace()
         _argmin_idx = np.argmin(_movements)
         _argmax_idx = np.argmax(_movements)
         _max_acc_ratio = np.abs(_movements[_argmax_idx] - _movements[_argmin_idx]) / _movements[_argmin_idx]
@@ -195,8 +194,6 @@ class SingleUavBehavior(object):
                     _turning_count += 1
                     _cur_pv_type = _pv_type
 
-        # import pdb; pdb.set_trace()
-
         if _turning_count >= change_freq_threshold:
             if return_val:
                 return True, _turning_count
@@ -207,3 +204,16 @@ class SingleUavBehavior(object):
                 return False, _turning_count
             else:
                 return False
+
+class MultiUavsBehavior(object):
+    def __init__(self, objs_tracks:list[basic_units.ObjTracks], analyze_win=8):
+        self.tracks = objs_tracks
+        self.win_size = analyze_win
+
+        self.config_parms = basic_units.ConfigParms()
+    
+    def shrink_fleet(self, shrink_ratio_threshold=None):
+        if shrink_ratio_threshold is None:
+            shrink_ratio_threshold = self.config_parms['MULTI_UAVS_BEHAVIOR']['DIST_CHANGE_RATIO_THRESHOLD']
+        
+        

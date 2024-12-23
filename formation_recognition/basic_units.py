@@ -1,4 +1,6 @@
 import os.path as osp
+
+import math
 import numpy as np
 import configparser
 
@@ -17,6 +19,9 @@ class GlobalConfigs(object):
         self.SWARM_NEAR_ANGLE_DEGREES = None
         self.SWARM_AVERAGE_SPEED = None
         self.DBSCAN_EPS = None
+        
+        # UAV特性分析参数
+        self.SPEED_CHANGE_THRESHOLD = 0.5
 
         self._load_basic_cfgs()
     
@@ -32,6 +37,10 @@ class GlobalConfigs(object):
             self.SWARM_NEAR_ANGLE_DEGREES = float(_config['DEFAULT']['SWARM_NEAR_ANGLE_DEGREES'])
             self.SWARM_AVERAGE_SPEED = float(_config['DEFAULT']['SWARM_AVERAGE_SPEED'])
             self.DBSCAN_EPS = float(_config['DEFAULT']['DBSCAN_EPS'])
+            
+            self.SPEED_CHANGE_THRESHOLD = float(_config['SINGLE_UAV_BEHAVIOR']['SPEED_CHANGE_THRESHOLD'])
+            self.ORIENT_CHANGE_THRESHOLD = float(_config['SINGLE_UAV_BEHAVIOR']['ORIENT_CHANGE_THRESHOLD'])
+            self.ORIENT_CHANGE_FREQ_THRESHOLD = float(_config['SINGLE_UAV_BEHAVIOR']['ORIENT_CHANGE_FREQ_THRESHOLD'])
         
         except (configparser.NoSectionError, configparser.NoOptionError) as e:
             print(f"Error reading configuration file: {e}")
@@ -132,6 +141,18 @@ class ObjTracks(object):
         self.zs = np.append(self.zs, z) if (self.zs is not None and z is not None) else None
         self.ts = np.append(self.ts, t) if (self.ts is not None and t is not None) else None
     
+    def total_locations(self):
+        if self.zs is None:
+            return self.xs, self.ys
+        else:
+            return self.xs, self.ys, self.zs
+
+    def last_n_locations(self, lookback=10):
+        if self.zs is None:
+            return self.xs[-lookback:], self.ys[-lookback:]
+        else:
+            return self.xs[-lookback:], self.ys[-lookback:], self.zs[-lookback:]
+    
     def last_location(self, lookback=1):
         if self.zs is not None:
             return np.mean(self.xs[-lookback:]), np.mean(self.ys[-lookback:]), np.mean(self.zs[-lookback:])
@@ -158,12 +179,34 @@ class ObjTracks(object):
         else:
             return np.array([dx, dy]) / np.sqrt(dx**2 + dy**2)
     
+    def move_direct_angles(self, lookback=1):
+        if len(self.xs) < lookback:
+            return None
+        
+        dxs = self.xs[-lookback:] - self.xs[-1-lookback:-1]
+        dys = self.ys[-lookback:] - self.ys[-1-lookback:-1]
+        
+        # 目前角度计算不考虑z轴上面的数值变化
+        _orient_rads = [math.atan2(_dx, _dy) for _dx, _dy in zip(dxs, dys)]
+        _orient_degs = [math.degrees(_orient_rad) for _orient_rad in _orient_rads]
+
+        return _orient_degs
+    
     def move_speed(self, lookback=1):
         if len(self.xs) < lookback:
             return None
 
         dx = np.mean(self.xs[-lookback:] - self.xs[-1-lookback:-1])
         dy = np.mean(self.ys[-lookback:] - self.ys[-1-lookback:-1])
+
+        return np.sqrt(dx**2 + dy**2)
+    
+    def move_speeds(self, lookback=1):
+        if len(self.xs) < lookback:
+            return None
+
+        dx = self.xs[-lookback:] - self.xs[-1-lookback:-1]
+        dy = self.ys[-lookback:] - self.ys[-1-lookback:-1]
 
         return np.sqrt(dx**2 + dy**2)
 

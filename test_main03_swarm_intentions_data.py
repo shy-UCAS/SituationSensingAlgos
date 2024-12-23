@@ -14,6 +14,9 @@ from scipy.ndimage import gaussian_filter1d
 import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation
 
+from formation_recognition import basic_units
+from formation_recognition import intention_recognition as int_rec
+
 class SwarmIntentExhibitor(object):
     def __init__(self, file_path, coord_scale=1, interp_scale=3, vis=False):
         self.file_path = file_path
@@ -108,11 +111,68 @@ class SwarmIntentExhibitor(object):
 
             ax.grid(True, linestyle='--', linewidth=0.5)
             plt.show()
+    
+    def pack_to_objtracks(self, lookback_start=1, lookback_len=10, vis=False):
+        _num_objs = self.uav_xys.shape[0]
 
+        # import pdb; pdb.set_trace()
+        if lookback_start > 0:
+            _obj_tracks = [basic_units.ObjTracks(self.uav_xys[_o_i, -lookback_start-lookback_len:-lookback_start, 0], 
+                                                self.uav_xys[_o_i, -lookback_start-lookback_len:-lookback_start, 1], 
+                                                id='euav%d' % (_o_i)) 
+                        for _o_i in range(_num_objs)]
+            
+        elif lookback_start <= 0:
+            _obj_tracks = [basic_units.ObjTracks(self.uav_xys[_o_i, -lookback_len:, 0], 
+                                                self.uav_xys[_o_i, -lookback_len:, 1], 
+                                                id='euav%d' % (_o_i))
+                           for _o_i in range(_num_objs)]
+        
+        if vis:
+            fig, ax = plt.subplots(1, 1, figsize=(10, 10))
+
+            for _obj_i, _obj_trk in enumerate(_obj_tracks):
+                _ttl_xs, _ttl_ys = self.uav_xys[_obj_i, :, 0], self.uav_xys[_obj_i, :, 1]
+                _obj_xs, _obj_ys = _obj_trk.last_n_locations(lookback_len)
+
+                ax.plot(_ttl_xs, _ttl_ys, c="green", linestyle='--', alpha=0.5)
+                ax.plot(_obj_xs, _obj_ys, c="red", linestyle='-', alpha=0.9)
+
+                ax.text(_obj_xs[-1], _obj_ys[-1], "euav%d" % (_obj_i), c="red", fontsize=10)
+            
+            ax.grid(True, linestyle='--', linewidth=0.5)
+            plt.show()
+        return _obj_tracks
         
 
 if __name__ == "__main__":
     swarm_intent_dir = r"data\manual_intention_recog"
-    swarm_intent_file = osp.join(swarm_intent_dir, "fast_pass_through_no03.xlsx")
+    # swarm_intent_file = osp.join(swarm_intent_dir, "fast_pass_through_no03.xlsx")
+    swarm_intent_file = osp.join(swarm_intent_dir, "ext_search_no01.xlsx")
 
-    intent_exh = SwarmIntentExhibitor(swarm_intent_file, vis=True)
+    intent_exh = SwarmIntentExhibitor(swarm_intent_file, vis=False)
+    test_objtracks = intent_exh.pack_to_objtracks(lookback_start=0, lookback_len=12, vis=True)
+
+    test_sw = 1
+    if test_sw == 1:
+        _test_objbehavs = [int_rec.SingleUavBehavior(_obj_trk, analyze_win=len(_obj_trk)) for _obj_trk in test_objtracks]
+        
+        print("[Speed Ups]:")
+        for _o_i, _o_behav in enumerate(_test_objbehavs):
+            _acc_bool, _acc_ratio = _o_behav.speed_up(return_val=True)
+            print("Obj%d, speed-up: %s, acc-ratio: %.3f" % (_o_i, _acc_bool, _acc_ratio))
+        
+        print("[Slow Downs]:")
+        for _o_i, _o_behav in enumerate(_test_objbehavs):
+            _dac_bool, _dac_ratio = _o_behav.slow_down(return_val=True)
+            print("Obj%d, slow-down: %s, dac-ratio: %.3f" % (_o_i, _dac_bool, _dac_ratio))
+        
+        print("[Orient Change]:")
+        for _o_i, _o_behav in enumerate(_test_objbehavs):
+            _orc_bool, _orc_degrees = _o_behav.orient_change(return_val=True)
+            print("Obj%d, orient-change: %s, diff-angle: %.3f" % (_o_i, _orc_bool, _orc_degrees))
+
+        print("[Turning Frequency]:")
+        for _o_i, _o_behav in enumerate(_test_objbehavs):
+            _tfr_bool, _tfr_freq = _o_behav.turning_frequency(return_val=True)
+            print("Obj%d, turning-freq: %s, freq: %.3f" % (_o_i, _tfr_bool, _tfr_freq))

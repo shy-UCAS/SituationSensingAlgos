@@ -210,10 +210,42 @@ class MultiUavsBehavior(object):
         self.tracks = objs_tracks
         self.win_size = analyze_win
 
-        self.config_parms = basic_units.ConfigParms()
+        self.config_parms = basic_units.GlobalConfigs()
+        
+        self.tracks_inter_dists, self.tracks_mean_dists = self._inter_distances()
     
-    def shrink_fleet(self, shrink_ratio_threshold=None):
+    def _inter_distances(self):
+        # 计算一组x、y坐标位置之间的相对距离
+        # 计算每帧中所有无人机之间的相对距离
+        _comb_tracks_xys = np.array([np.stack([_trk.xs, _trk.ys], axis=1) for _trk in self.tracks])
+        _track_dists = []
+        _mean_dists = []
+        
+        for _iter in range(_comb_tracks_xys.shape[1]):
+            _cur_objs_xys = _comb_tracks_xys[:, _iter, :]
+            _cur_objs_dists = np.linalg.norm(_cur_objs_xys[:, np.newaxis, :] - _cur_objs_xys[np.newaxis, :, :], axis=-1)
+        
+            _track_dists.append(_cur_objs_dists[np.triu(np.ones_like(_cur_objs_dists, dtype=bool), k=1)])
+            _mean_dists.append(np.mean(_track_dists[-1]))
+
+        return _track_dists, _mean_dists
+    
+    def shrink_fleet(self, shrink_ratio_threshold=None, return_val=False):
         if shrink_ratio_threshold is None:
-            shrink_ratio_threshold = self.config_parms['MULTI_UAVS_BEHAVIOR']['DIST_CHANGE_RATIO_THRESHOLD']
+            shrink_ratio_threshold = self.config_parms.DIST_CHANGE_RATIO_THRESHOLD
+
+        _track_len = len(self.tracks[0])
+        _prev_mean_dist = np.mean(self.tracks_mean_dists[:int(_track_len / 2)])
+        _cur_mean_dist = np.min(self.tracks_mean_dists[-2:])
+        _shrink_ratio = (_prev_mean_dist - _cur_mean_dist) / _prev_mean_dist
         
-        
+        if _shrink_ratio > shrink_ratio_threshold:
+            if return_val:
+                return True, _shrink_ratio
+            else:
+                return True
+        else:
+            if return_val:
+                return False, _shrink_ratio
+            else:
+                return False

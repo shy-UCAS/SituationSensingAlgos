@@ -286,7 +286,7 @@ class FormationRecognizer(object):
         if cluster_labels is None:
             _norm_direct_vec = self._get_direct_vec(prev_locs, cur_locs)
             _formtype, _formtype_name = self.infer_formtype(cur_locs, _norm_direct_vec, vis=vis)
-            return [_formtype], [_formtype_name]
+            return _formtype, _formtype_name
         
         else:
             _uniq_labels = np.unique(cluster_labels)

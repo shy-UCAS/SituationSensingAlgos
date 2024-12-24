@@ -118,8 +118,13 @@ class SplitClusters(object):
 
         for idx, label in enumerate(clusters):
             swarm_key = f"eSwarm{label + 1}"
-            enemy_uavs_clusters.setdefault(swarm_key, []).append(f"eUav{idx + 1}")
-            
+
+            _cur_swarm_obj = self.swarm_objs[idx]
+            if _cur_swarm_obj.id is None:
+                enemy_uavs_clusters.setdefault(swarm_key, []).append(f"eUav{idx + 1}")
+            else:
+                enemy_uavs_clusters.setdefault(swarm_key, []).append(_cur_swarm_obj.id)
+
         _result_json_str = json.dumps(enemy_uavs_clusters, ensure_ascii=False)
         return _result_json_str
     

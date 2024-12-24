@@ -42,7 +42,6 @@ class TrajectoryExhibitor(object):
             
         self.time = self.data['time']  # 第一列为时间
         self.trajectories = self.data.iloc[:, 1:] / self.coord_scale  # 后面的列为轨迹数据
-        # import pdb; pdb.set_trace()
         
         _new_time = np.linspace(self.time.iloc[0], self.time.iloc[-1], len(self.time) * self.interp_scale)
         _interp_coords_comb = np.zeros((len(_new_time), self.trajectories.shape[1]))
@@ -56,8 +55,6 @@ class TrajectoryExhibitor(object):
         
         self.time = pd.Series(_new_time)
         self.trajectories = pd.DataFrame(_interp_coords_comb, columns=self.trajectories.columns)
-        
-        # import pdb; pdb.set_trace()
 
     def get_points(self):
         """
@@ -73,7 +70,6 @@ class TrajectoryExhibitor(object):
         """
         动画显示所有目标的运动轨迹。
         """
-        
         fig, ax = plt.subplots(figsize=(10, 10))
         ax.set_xlim(self.trajectories.iloc[:, ::2].min().min() - 1, 
                     self.trajectories.iloc[:, ::2].max().max() + 1)
@@ -116,7 +112,6 @@ class TrajectoryExhibitor(object):
             
             for i, (line, point) in enumerate(zip(lines, points)):
                 # 提取当前目标的轨迹和位置
-                # import pdb; pdb.set_trace()
                 x_data = self.trajectories.iloc[:frame[0]+1, i*2].values
                 y_data = self.trajectories.iloc[:frame[0]+1, i*2+1].values
                 
@@ -207,6 +202,7 @@ if __name__ == "__main__":
         _clustering_lists.append(_cur_clust_split.last_clustering())
         
         # predict the formtype of clusters
+        import pdb; pdb.set_trace()
         _vis_formtype = False
         _clust_formtypes, _clust_formtype_names = _formtype_rec.infer_movements(_prev_positions, positions, _cur_clust_split.last_clustering(), vis=_vis_formtype)
         _formated_formtypes = _formtype_rec.formated_formtype_result(_cur_clust_split.last_clustering(), _clust_formtypes, _clust_formtype_names)

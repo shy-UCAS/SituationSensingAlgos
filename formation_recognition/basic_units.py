@@ -22,6 +22,11 @@ class GlobalConfigs(object):
         
         # UAV特性分析参数
         self.SPEED_CHANGE_THRESHOLD = 0.5
+        self.ORIENT_CHANGE_THRESHOLD = None
+        self.ORIENT_CHANGE_FREQ_THRESHOLD = None
+        
+        # UAV集群特性分析
+        self.DIST_CHANGE_RATIO_THRESHOLD = None
 
         self._load_basic_cfgs()
     
@@ -41,6 +46,8 @@ class GlobalConfigs(object):
             self.SPEED_CHANGE_THRESHOLD = float(_config['SINGLE_UAV_BEHAVIOR']['SPEED_CHANGE_THRESHOLD'])
             self.ORIENT_CHANGE_THRESHOLD = float(_config['SINGLE_UAV_BEHAVIOR']['ORIENT_CHANGE_THRESHOLD'])
             self.ORIENT_CHANGE_FREQ_THRESHOLD = float(_config['SINGLE_UAV_BEHAVIOR']['ORIENT_CHANGE_FREQ_THRESHOLD'])
+            
+            self.DIST_CHANGE_RATIO_THRESHOLD = float(_config['MULTI_UAVS_BEHAVIOR']['DIST_CHANGE_RATIO_THRESHOLD'])
         
         except (configparser.NoSectionError, configparser.NoOptionError) as e:
             print(f"Error reading configuration file: {e}")
@@ -210,3 +217,10 @@ class ObjTracks(object):
 
         return np.sqrt(dx**2 + dy**2)
 
+class ObjTracksJson(ObjTracks):
+    def __init__(self, obj_json, id=None):
+        super().__init__(obj_json['xs'], obj_json['ys'])
+
+        self.zs = obj_json['zs'] if 'zs' in obj_json else None
+        self.ts = obj_json['ts'] if 'ts' in obj_json else None
+        self.id = id

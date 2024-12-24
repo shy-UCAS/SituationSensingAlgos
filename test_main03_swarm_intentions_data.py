@@ -152,7 +152,7 @@ if __name__ == "__main__":
     intent_exh = SwarmIntentExhibitor(swarm_intent_file, vis=False)
     test_objtracks = intent_exh.pack_to_objtracks(lookback_start=0, lookback_len=12, vis=True)
 
-    test_sw = 1
+    test_sw = 2
     if test_sw == 1:
         # 测试单个
         _test_objbehavs = [int_rec.SingleUavBehavior(_obj_trk, analyze_win=len(_obj_trk)) for _obj_trk in test_objtracks]
@@ -176,3 +176,8 @@ if __name__ == "__main__":
         for _o_i, _o_behav in enumerate(_test_objbehavs):
             _tfr_bool, _tfr_freq = _o_behav.turning_frequency(return_val=True)
             print("Obj%d, turning-freq: %s, freq: %.3f" % (_o_i, _tfr_bool, _tfr_freq))
+    
+    elif test_sw == 2:
+        # 测试多个
+        _test_objbehavs = int_rec.MultiUavsBehavior(test_objtracks, analyze_win=len(test_objtracks[0]))
+        _shrink_bool, _shrink_ratio = _test_objbehavs.shrink_fleet(return_val=True)

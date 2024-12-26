@@ -24,6 +24,9 @@ class GlobalConfigs(object):
         self.SPEED_CHANGE_THRESHOLD = 0.5
         self.ORIENT_CHANGE_THRESHOLD = None
         self.ORIENT_CHANGE_FREQ_THRESHOLD = None
+        self.DIRECTING_ANGLE_EPS = None
+        self.OPTICAL_OBSERVE_RANGE = 1500
+        self.ARRIVE_AT_EPS = 10
         
         # UAV集群特性分析
         self.DIST_CHANGE_RATIO_THRESHOLD = None
@@ -46,6 +49,9 @@ class GlobalConfigs(object):
             self.SPEED_CHANGE_THRESHOLD = float(_config['SINGLE_UAV_BEHAVIOR']['SPEED_CHANGE_THRESHOLD'])
             self.ORIENT_CHANGE_THRESHOLD = float(_config['SINGLE_UAV_BEHAVIOR']['ORIENT_CHANGE_THRESHOLD'])
             self.ORIENT_CHANGE_FREQ_THRESHOLD = float(_config['SINGLE_UAV_BEHAVIOR']['ORIENT_CHANGE_FREQ_THRESHOLD'])
+            self.DIRECTING_ANGLE_EPS = float(_config['SINGLE_UAV_BEHAVIOR']['DIRECTING_ANGLE_EPS'])
+            self.OPTICAL_OBSERVE_RANGE = float(_config['SINGLE_UAV_BEHAVIOR']['OPTICAL_OBSERVE_RANGE'])
+            self.ARRIVE_AT_EPS = float(_config['SINGLE_UAV_BEHAVIOR']['ARRIVE_AT_EPS'])
             
             self.DIST_CHANGE_RATIO_THRESHOLD = float(_config['MULTI_UAVS_BEHAVIOR']['DIST_CHANGE_RATIO_THRESHOLD'])
         
@@ -62,19 +68,28 @@ class GlobalConfigs(object):
 
 class BasicFacilities(object):
     def __init__(self, cfg_file=DEFAULT_FACILITIES_FILE):
+        self.cfg_file = cfg_file
+        
         self.RING1_XYS = None
         self.RING2_XYS = None
 
+        self.RADARS_XYS = []
+        self.HEADQUARTERS_XYS = []
+        self.UAV_AIRPORTS_XYS = []
+
+        self.total_facilities = None
+
         self._load_rings_coords()
+        self.refresh_categories()
     
     def _load_rings_coords(self, cfg_file=None):
         if cfg_file is None:
-            cfg_file = DEFAULT_FACILITIES_FILE
+            self.cfg_file = DEFAULT_FACILITIES_FILE
 
         _config = configparser.ConfigParser()
 
         try:
-            _config.read(cfg_file)
+            _config.read(self.cfg_file)
 
             _ring1_xs = [float(_str) for _str in _config['DEFENCE_RING1']['BORDER_XS'].split(',')]
             _ring1_ys = [float(_str) for _str in _config['DEFENCE_RING1']['BORDER_YS'].split(',')]
@@ -83,6 +98,18 @@ class BasicFacilities(object):
             _ring2_xs = [float(_str) for _str in _config['DEFENCE_RING2']['BORDER_XS'].split(',')]
             _ring2_ys = [float(_str) for _str in _config['DEFENCE_RING2']['BORDER_YS'].split(',')]
             self.RING2_XYS = np.stack([np.array(_ring2_xs), np.array(_ring2_ys)], axis=1)
+
+            _radars_xs = [float(_str) for _str in _config['RADARS']['RADARS_XS'].split(',')]
+            _radars_ys = [float(_str) for _str in _config['RADARS']['RADARS_YS'].split(',')]
+            self.RADARS_XYS = np.stack([np.array(_radars_xs), np.array(_radars_ys)], axis=1).reshape(-1, 2)
+            
+            _hq_xs = [float(_str) for _str in _config['HEADQUARTERS']['HQ_XS'].split(',')]
+            _hq_ys = [float(_str) for _str in _config['HEADQUARTERS']['HQ_YS'].split(',')]
+            self.HEADQUARTERS_XYS = np.stack([np.array(_hq_xs), np.array(_hq_ys)], axis=1).reshape(-1, 2)
+
+            _ua_xs = [float(_str) for _str in _config['UAV_AIRPORTS']['UA_XS'].split(',')]
+            _ua_ys = [float(_str) for _str in _config['UAV_AIRPORTS']['UA_YS'].split(',')]
+            self.UAV_AIRPORTS_XYS = np.stack([np.array(_ua_xs), np.array(_ua_ys)], axis=1).reshape(-1, 2)
         
         except (configparser.NoSectionError, configparser.NoOptionError) as e:
             print(f"Error reading defence ring file: {e}")
@@ -91,6 +118,52 @@ class BasicFacilities(object):
         except ValueError as e:
             print(f"Error converting defence ring coords to float: {e}")
             exit(1)
+    
+    def refresh_categories(self):
+        self.total_facilities = {}
+
+        for _iter in range(len(self.RADARS_XYS)):
+            self.total_facilities[f"radar_{_iter+1}"] = self.RADARS_XYS[_iter]
+        
+        for _iter in range(len(self.HEADQUARTERS_XYS)):
+            self.total_facilities[f"hq_{_iter+1}"] = self.HEADQUARTERS_XYS[_iter]
+
+        for _iter in range(len(self.UAV_AIRPORTS_XYS)):
+            self.total_facilities[f"ua_{_iter+1}"] = self.UAV_AIRPORTS_XYS[_iter]
+    
+    def subset_facilities(self, facility_names):
+        _subset_facilities = {}
+
+        for _name in facility_names:
+            _subset_facilities[_name] = self.total_facilities[_name]
+
+        return _subset_facilities
+
+class BasicFacilitiesSubset(BasicFacilities):
+    def __init__(self, facilities:BasicFacilities, facility_names:list[str]):
+        super().__init__(facilities.cfg_file)
+        
+        self.total_facilities = facilities.subset_facilities(facility_names)
+        self.subset_facilities_coordinates()
+    
+    def subset_facilities_coordinates(self):
+        _radar_coordinates = [self.total_facilities[_name].reshape(-1, 2) for _name in self.total_facilities if _name.startswith("radar_")]
+        if len(_radar_coordinates) > 0:
+            self.RADARS_XYS = np.stack(_radar_coordinates, axis=0)
+        else:
+            self.RADARS_XYS = []
+        
+        _hq_coordinates = [self.total_facilities[_name].reshape(-1, 2) for _name in self.total_facilities if _name.startswith("hq_")]
+        if len(_hq_coordinates) > 0:
+            self.HEADQUARTERS_XYS = np.stack(_hq_coordinates, axis=0)
+        else:
+            self.HEADQUARTERS_XYS = []
+        
+        _uav_coordinates = [self.total_facilities[_name].reshape(-1, 2) for _name in self.total_facilities if _name.startswith("ua_")]
+        if len(_uav_coordinates) > 0:
+            self.UAV_AIRPORTS_XYS = np.stack(_uav_coordinates, axis=0)
+        else:
+            self.UAV_AIRPORTS_XYS = []
 
 class ScaleSimMovements(object):
     def __init__(self, movements, avg_speed=None, min_distance=None):
@@ -133,7 +206,7 @@ class ObjTracks(object):
         self.ys = np.array(ys)
         
         self.zs = np.array(zs) if zs is not None else None
-        self.ts = np.array(ts) if ts is not None else None
+        self.ts = np.array(ts) if ts is not None else np.arange(len(xs))
         self.id = id
         
         assert len(self.xs) == len(self.ys), "[Erorr] Length of x and y coordinates are not equal"
@@ -156,9 +229,9 @@ class ObjTracks(object):
 
     def last_n_locations(self, lookback=10):
         if self.zs is None:
-            return self.xs[-lookback:], self.ys[-lookback:]
+            return self.ts[-lookback:], self.xs[-lookback:], self.ys[-lookback:]
         else:
-            return self.xs[-lookback:], self.ys[-lookback:], self.zs[-lookback:]
+            return self.ts[-lookback:], self.xs[-lookback:], self.ys[-lookback:], self.zs[-lookback:]
     
     def last_location(self, lookback=1):
         if self.zs is not None:
@@ -190,6 +263,7 @@ class ObjTracks(object):
         if len(self.xs) < lookback:
             return None
         
+        mts = self.ts[-lookback:]
         dxs = self.xs[-lookback:] - self.xs[-1-lookback:-1]
         dys = self.ys[-lookback:] - self.ys[-1-lookback:-1]
         
@@ -197,7 +271,20 @@ class ObjTracks(object):
         _orient_rads = [math.atan2(_dx, _dy) for _dx, _dy in zip(dxs, dys)]
         _orient_degs = [math.degrees(_orient_rad) for _orient_rad in _orient_rads]
 
-        return _orient_degs
+        return mts, _orient_degs
+    
+    def to_position_angles(self, position, lookback=1):
+        if len(self.xs) < lookback:
+            return None
+
+        to_pos_dxs = position[0] - self.xs[-lookback:]
+        to_pos_dys = position[1] - self.ys[-lookback:]
+
+        # 目前角度计算不考虑z轴上面的数值变化
+        to_pos_rads = [math.atan2(_dx, _dy) for _dx, _dy in zip(to_pos_dxs, to_pos_dys)]
+        to_pos_degs = [math.degrees(_orient_rad) for _orient_rad in to_pos_rads]
+
+        return to_pos_degs
     
     def move_speed(self, lookback=1):
         if len(self.xs) < lookback:

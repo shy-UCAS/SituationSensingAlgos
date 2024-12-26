@@ -82,6 +82,9 @@ def recog_fleet_formtype(uav_coords_str, clustering_str):
     # import pdb; pdb.set_trace()
     return json.dumps(formtypes_result)
 
+def ring_breach_infer(uav_coords_str, clustering_str):
+    """ 基于输入的无人机轨迹数据、无人机分群情况，给出各轨迹点上面无人机的突破情况 """
+    return formated_output
 
 if __name__ == '__main__':
     from test_main02_dynamic_trajectories_recog import TrajectoryExhibitor
@@ -116,7 +119,7 @@ if __name__ == '__main__':
                                      'ys': processor.trajectories['uav5_y'].tolist(),
                                      'ts': np.arange(len(processor.trajectories['uav5_x'])).tolist()},}
         
-        input_json_str = json.dumps(input_json_dict)
+        input_json_str = json.dumps(input_json_dict) # 包含无人机轨迹的json字符串
 
         # print(input_json_str)
         clustering_result = get_uavs_clusters(input_json_str)
@@ -125,4 +128,5 @@ if __name__ == '__main__':
         formation_result = recog_fleet_formtype(input_json_str, clustering_result)
         print(formation_result)
 
-
+        # 基于无人机轨迹、分组情况，给出各无人机的突破情况
+        formated_breaches = ring_breach_infer(input_json_str, clustering_result)

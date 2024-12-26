@@ -114,8 +114,8 @@ class SwarmIntentExhibitor(object):
     
     def pack_to_objtracks(self, lookback_start=1, lookback_len=10, vis=False):
         _num_objs = self.uav_xys.shape[0]
-
         # import pdb; pdb.set_trace()
+
         if lookback_start > 0:
             _obj_tracks = [basic_units.ObjTracks(self.uav_xys[_o_i, -lookback_start-lookback_len:-lookback_start, 0], 
                                                 self.uav_xys[_o_i, -lookback_start-lookback_len:-lookback_start, 1], 
@@ -133,7 +133,7 @@ class SwarmIntentExhibitor(object):
 
             for _obj_i, _obj_trk in enumerate(_obj_tracks):
                 _ttl_xs, _ttl_ys = self.uav_xys[_obj_i, :, 0], self.uav_xys[_obj_i, :, 1]
-                _obj_xs, _obj_ys = _obj_trk.last_n_locations(lookback_len)
+                _obj_ts, _obj_xs, _obj_ys = _obj_trk.last_n_locations(lookback_len)
 
                 ax.plot(_ttl_xs, _ttl_ys, c="green", linestyle='--', alpha=0.5)
                 ax.plot(_obj_xs, _obj_ys, c="red", linestyle='-', alpha=0.9)
@@ -143,19 +143,22 @@ class SwarmIntentExhibitor(object):
             ax.grid(True, linestyle='--', linewidth=0.5)
             plt.show()
         return _obj_tracks
-        
+
 if __name__ == "__main__":
     swarm_intent_dir = r"data\manual_intention_recog"
-    # swarm_intent_file = osp.join(swarm_intent_dir, "fast_pass_through_no03.xlsx")
-    swarm_intent_file = osp.join(swarm_intent_dir, "ext_search_no01.xlsx")
+    swarm_intent_file = osp.join(swarm_intent_dir, "fast_pass_through_no03.xlsx")
+    # swarm_intent_file = osp.join(swarm_intent_dir, "ext_search_no01.xlsx")
 
-    intent_exh = SwarmIntentExhibitor(swarm_intent_file, vis=False)
-    test_objtracks = intent_exh.pack_to_objtracks(lookback_start=0, lookback_len=12, vis=True)
+    intent_exh = SwarmIntentExhibitor(swarm_intent_file, interp_scale=20, vis=False)
+    test_objtracks = intent_exh.pack_to_objtracks(lookback_start=10, lookback_len=20, vis=True)
+    # import pdb; pdb.set_trace()
+    
+    test_facilities = basic_units.BasicFacilities()
 
     test_sw = 2
     if test_sw == 1:
         # 测试单个
-        _test_objbehavs = [int_rec.SingleUavBehavior(_obj_trk, analyze_win=len(_obj_trk)) for _obj_trk in test_objtracks]
+        _test_objbehavs = [int_rec.SingleUavBehavior(_obj_trk, analyze_win=19) for _obj_trk in test_objtracks]
         
         print("[Speed Ups]:")
         for _o_i, _o_behav in enumerate(_test_objbehavs):
@@ -176,8 +179,37 @@ if __name__ == "__main__":
         for _o_i, _o_behav in enumerate(_test_objbehavs):
             _tfr_bool, _tfr_freq = _o_behav.turning_frequency(return_val=True)
             print("Obj%d, turning-freq: %s, freq: %.3f" % (_o_i, _tfr_bool, _tfr_freq))
+        
+        print("[Directing Facilities]:")
+        for _o_i, _o_behav in enumerate(_test_objbehavs):
+            _direct_ts, _direct_facs, _direct_angles = _o_behav.directing_facilities(test_facilities, return_val=True)
+            print("time-stamps: %s, facilities: %s" % (_direct_ts, _direct_facs))
+        
+        print("[Closing Facilities]:")
+        for _o_i, _o_behav in enumerate(_test_objbehavs):
+            _distancing_stats, _closing_ratios = _o_behav.distance_to_facilities(test_facilities, return_val=True)
+            print("closing to facilities: %s, close-ratios: %s" % (_distancing_stats, _closing_ratios))
+        
+        print("[Probing Facilities]:")
+        for _o_i, _o_behav in enumerate(_test_objbehavs):
+            _probing_stats = _o_behav.probed_facilities(test_facilities)
+            print("probed facilities: %s" % (_probing_stats))
+        
+        print("[Shrinking Speed]:")
+        for _o_i, _o_behav in enumerate(_test_objbehavs):
+            _arrive_bools, _arrive_times = _o_behav.estimate_arrive_time(test_facilities)
+            print("arrive-bools: %s, arrive-times: %s" % (_arrive_bools, _arrive_times))
     
     elif test_sw == 2:
         # 测试多个
-        _test_objbehavs = int_rec.MultiUavsBehavior(test_objtracks, analyze_win=len(test_objtracks[0]))
+        _test_objbehavs = int_rec.MultiUavsBehavior(test_objtracks, analyze_win=19)
+        
         _shrink_bool, _shrink_ratio = _test_objbehavs.shrink_fleet(return_val=True)
+        print("Shrink-fleet: %s, shrink-ratio: %.3f" % (_shrink_bool, _shrink_ratio))
+
+        _spread_bool, _spread_ratio = _test_objbehavs.spread_fleet(return_val=True)
+        print("Spread-fleet: %s, spread-ratio: %.3f" % (_spread_bool, _spread_ratio))
+
+        _targeting_targets, _arrive_times = _test_objbehavs.targeting_same_facilities(test_facilities)
+        print("Targeting-facilities: %s, arrive-times: %s" % (_targeting_targets, _arrive_times))
+        

@@ -10,6 +10,7 @@ import configparser
 """
 
 # 构建指向上一级目录的路径来读取config.ini文件
+DEFAULT_WS_ROOT = osp.dirname(osp.dirname(osp.abspath(__file__)))
 DEFAULT_CONFIG_FILE = osp.join(osp.dirname(osp.abspath(__file__)), '..', 'config.ini')
 DEFAULT_FACILITIES_FILE = osp.join(osp.dirname(osp.abspath(__file__)), '..', 'facilities.ini')
 
@@ -18,7 +19,13 @@ class GlobalConfigs(object):
         self.SWARM_MUTUAL_DISTANCE = None
         self.SWARM_NEAR_ANGLE_DEGREES = None
         self.SWARM_AVERAGE_SPEED = None
+
+        self.CLUSTER_SPATIAL_SCALE = 1.0
         self.DBSCAN_EPS = None
+
+        self.FORMATION_RECOG_TYPES = ['vertical', 'horizontal', 'echelon', 'wedge', 'circular', 'random']
+        self.FORMATION_RECOG_MODEL_DIR = osp.join(DEFAULT_WS_ROOT, 'pretrained_models', 'formation_recognition')
+        self.FORMATION_RECOG_MODEL_FILE = osp.join(self.FORMATION_RECOG_MODEL_DIR, 'form_recog_model_192000.pth')
         
         # UAV特性分析参数
         self.SPEED_CHANGE_THRESHOLD = 0.5
@@ -44,7 +51,13 @@ class GlobalConfigs(object):
             self.SWARM_MUTUAL_DISTANCE = float(_config['DEFAULT']['SWARM_MUTUAL_DISTANCE'])
             self.SWARM_NEAR_ANGLE_DEGREES = float(_config['DEFAULT']['SWARM_NEAR_ANGLE_DEGREES'])
             self.SWARM_AVERAGE_SPEED = float(_config['DEFAULT']['SWARM_AVERAGE_SPEED'])
+
+            self.CLUSTER_SPATIAL_SCALE = float(_config['DEFAULT']['CLUSTER_SPATIAL_SCALE'])
             self.DBSCAN_EPS = float(_config['DEFAULT']['DBSCAN_EPS'])
+
+            self.FORMATION_RECOG_TYPES = [_str.strip() for _str in _config['DEFAULT']['FORMATION_RECOG_TYPES'].split(',')]
+            self.FORMATION_RECOG_MODEL_DIR = osp.join(DEFAULT_WS_ROOT, *_config['DEFAULT']['FORMATION_RECOG_MODEL_DIR'].split('/'))
+            self.FORMATION_RECOG_MODEL_FILE = osp.join(self.FORMATION_RECOG_MODEL_DIR, *_config['DEFAULT']['FORMATION_RECOG_MODEL_FILE'].split('/'))
             
             self.SPEED_CHANGE_THRESHOLD = float(_config['SINGLE_UAV_BEHAVIOR']['SPEED_CHANGE_THRESHOLD'])
             self.ORIENT_CHANGE_THRESHOLD = float(_config['SINGLE_UAV_BEHAVIOR']['ORIENT_CHANGE_THRESHOLD'])

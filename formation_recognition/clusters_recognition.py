@@ -11,7 +11,7 @@ from formation_recognition import basic_units
 class SplitClusters(object):
     """ 基于给定的目标运动轨迹，进行聚类划分
     """
-    def __init__(self, swarm_objs:basic_units.ObjTracks, memory_len:int=3):
+    def __init__(self, swarm_objs:list[basic_units.ObjTracks], spatial_scale=None, memory_len:int=3):
         self.glb_cfgs = basic_units.GlobalConfigs()
 
         self.swarm_objs = swarm_objs
@@ -19,27 +19,32 @@ class SplitClusters(object):
         
         self.anlz_trajs = []
         self.clusters_list = []
+        self.spatial_scale = spatial_scale
         self.memory_len = memory_len
         
-        self._make_spat_features()
+        self._make_clustering()
 
-    def normalize_locs_dists(self, swarm_locs):
-        # import pdb; pdb.set_trace()        
+    def normalize_locs_dists(self, swarm_locs):     
         _swarm_locs = np.array(swarm_locs).reshape(self.num_objs, -1)
         _mutual_dists = np.sqrt(np.sum((swarm_locs[:, np.newaxis, :] - swarm_locs[np.newaxis, :, :])**2, axis=2))
         _mutual_dists = _mutual_dists[np.triu_indices(self.num_objs, k=1)]
 
         # 找出与集群基本距离接近的距离参数
-        _suitable_dist_min = self.glb_cfgs.SWARM_MUTUAL_DISTANCE
-        _suitable_dist_max = self.glb_cfgs.SWARM_MUTUAL_DISTANCE * 2.0
+        if self.spatial_scale is not None:
+            spatial_scale = self.spatial_scale
+        else:
+            spatial_scale = 1.0
+
+        _suitable_dist_min = self.glb_cfgs.SWARM_MUTUAL_DISTANCE * spatial_scale
+        _suitable_dist_max = self.glb_cfgs.SWARM_MUTUAL_DISTANCE * 2.0 * spatial_scale
 
         _inrange_dists = _mutual_dists[np.logical_and(_mutual_dists >= _suitable_dist_min, _mutual_dists <= _suitable_dist_max)]
         
         if len(_inrange_dists) <= 0:
-            _inrange_dists_mean = self.glb_cfgs.SWARM_MUTUAL_DISTANCE
+            _inrange_dists_mean = self.glb_cfgs.SWARM_MUTUAL_DISTANCE * spatial_scale
         else:
             _inrange_dists_mean = np.mean(_inrange_dists)
-            
+        
         return swarm_locs / _inrange_dists_mean
     
     def normalize_direct_angles(self, direct_xys):
@@ -67,14 +72,14 @@ class SplitClusters(object):
         if len(self.anlz_trajs) > self.memory_len:
             self.anlz_trajs = self.anlz_trajs[-self.anlz_trajs_len:]
 
-    def _make_spat_features(self):
+    def _make_clustering(self):
         _tic = time.time()
 
         _swarm_feats = []
         
         # 计算所有对象的位置
         _swarm_locs = np.array([_obj.last_location() for _obj in self.swarm_objs]).reshape(self.num_objs, -1)
-        # _swram_locs_dims = _swarm_locs.shape[1]
+
         _swarm_locs_norm = self.normalize_locs_dists(_swarm_locs)
         _swarm_feats.append(_swarm_locs_norm)
         
@@ -86,11 +91,9 @@ class SplitClusters(object):
         
         # 计算所有对象的速度
         _swarm_speeds = np.array([_obj.move_speed() for _obj in self.swarm_objs]).reshape(self.num_objs, -1)
-        # _swarm_speeds_dims = _swarm_speeds.shape[1]
         _swarm_speeds_norm = self.normalize_speeds(_swarm_speeds)
         _swarm_feats.append(_swarm_speeds_norm)
         
-        # import pdb; pdb.set_trace()
         _swarm_comb_feats = np.concatenate(_swarm_feats, axis=1)
         
         _dbscan = DBSCAN(eps=1.5, min_samples=1)
@@ -148,7 +151,6 @@ class SplitClusters(object):
             plt.scatter(cluster_points[:, 0], cluster_points[:, 1], 
                         label=f"Cluster {label}", color=colors[label], s=100, edgecolor='black', zorder=2)
             
-            # import pdb; pdb.set_trace()
             for _start_x, _start_y, _stop_x, _stop_y in np.concatenate([_start_locs, _stop_locs], axis=1):
                 plt.arrow(_start_x, _start_y, _stop_x - _start_x, _stop_y - _start_y, head_width=0.1, head_length=0.1, fc='black', ec='black')
             
@@ -174,4 +176,3 @@ class SplitClusters(object):
         plt.legend(fontsize=10)
         plt.grid(True)
         plt.show()
-        # import pdb; pdb.set_trace()

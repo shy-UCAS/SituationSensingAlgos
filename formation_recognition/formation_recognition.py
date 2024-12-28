@@ -16,6 +16,8 @@ import matplotlib.pyplot as plt
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import accuracy_score, classification_report, confusion_matrix
 
+from formation_recognition import basic_units
+
 class RNNClassifier(nn.Module):
     def __init__(self, input_size, hidden_size, output_size, num_layers):
         super(RNNClassifier, self).__init__()
@@ -313,6 +315,20 @@ class FormationRecognizer(object):
 
             return _clusters_formtypes, _clusters_formtype_names
     
+    def infer_swarm_formations(self, swarm_objs:list[basic_units.ObjTracks], cluster_labels=None, vis=False):
+        # 首先获取输入轨迹的运动方向（prev_location, cur_location)
+        _prv_locs = np.array([[_obj.xs[-2], _obj.ys[-2]] for _obj in swarm_objs])
+        _cur_locs = np.array([[_obj.xs[-1], _obj.ys[-1]] for _obj in swarm_objs])
+
+        # 然后提取cluster中的主要目标成员，分别计算每个编组的队型
+        _uniq_clust_ids = np.unique(cluster_labels)
+        _num_clusters = len(_uniq_clust_ids)
+
+        if (cluster_labels is None) or _num_clusters <= 1:
+            return self.infer_movements(_prv_locs, _cur_locs, vis=vis)
+        else:
+            return self.infer_movements(_prv_locs, _cur_locs, cluster_labels, vis=vis)
+
     def formated_formtype_result(self, clusters_labels, clusters_formtypes, clusters_formtype_names):
         """
         格式化队形结果，生成敌方每一次队形调整时各个群组的队形类型信息。

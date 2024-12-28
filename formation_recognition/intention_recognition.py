@@ -10,8 +10,9 @@ from scipy.signal import find_peaks
 import matplotlib.pyplot as plt
 
 from formation_recognition import basic_units
-from formation_recognition import clusters_recognition as clust_rec
+from formation_recognition import clusters_recognition as clus_rec
 from formation_recognition import formation_recognition as form_rec
+
 class SingleUavBehavior(object):
     def __init__(self, obj_track:basic_units.ObjTracks, analyze_win=8):
         self.track = obj_track
@@ -457,11 +458,29 @@ class MultiUavsBehavior(object):
                 _cur_fac_arive_time = [_cur_uav_arrive_times[_idx][1] for _idx in range(len(_cur_uav_arrive_times)) if _cur_uav_arrive_times[_idx][0] == _u_fac][0]
                 _tgt2fac_uavs[_u_fac]['arrive_times'].append(_cur_fac_arive_time)
         
-        # print("infer time: %.3f" % (time.time() - _tic))
-        # import pdb; pdb.set_trace()
         return _tgt2fac_uavs
+    
+    def infer_cluster_formations(self):
+        """ 分析当前无人机集群中的群组关联性，队形模式等信息 """
+        _tic = time.time()
 
-class EventsPacker(object):
-    """ 基于探测行为分析结果，构建典型单体和多体无人机事件 """
-    def __init__(self):
-        pass
+        _multi_uavs_cluster = clus_rec.SplitClusters(self.tracks, spatial_scale=15)
+        _cur_locs = np.array([[self.tracks[_iter].xs[-1], self.tracks[_iter].ys[-1]] for _iter in range(len(self.tracks))])
+
+        _form_recognizer = form_rec.FormationRecognizer(form_types=self.config_parms.FORMATION_RECOG_TYPES, 
+                                                        num_layers=3, 
+                                                        hidden_size=64, 
+                                                        pretrained_weights=self.config_parms.FORMATION_RECOG_MODEL_FILE)
+        
+        print("formation-recog model loaded in %.3fsecs" % (time.time() - _tic))
+
+        _form_types, _form_typenames = _form_recognizer.infer_swarm_formations(self.tracks, _multi_uavs_cluster.last_clustering())
+
+        return _multi_uavs_cluster.last_clustering(), _form_types, _form_typenames
+
+class IntentFactorExtractor(object):
+    """ 基于规则的意图识别总函数：
+        基于上述单体和多体的行为要素提取结果，使用Problog表达式描述意图识别要素
+    """
+    def __init__(self, ):
+        

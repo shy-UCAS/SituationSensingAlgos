@@ -202,7 +202,6 @@ if __name__ == "__main__":
         _clustering_lists.append(_cur_clust_split.last_clustering())
         
         # predict the formtype of clusters
-        import pdb; pdb.set_trace()
         _vis_formtype = False
         _clust_formtypes, _clust_formtype_names = _formtype_rec.infer_movements(_prev_positions, positions, _cur_clust_split.last_clustering(), vis=_vis_formtype)
         _formated_formtypes = _formtype_rec.formated_formtype_result(_cur_clust_split.last_clustering(), _clust_formtypes, _clust_formtype_names)

@@ -114,7 +114,6 @@ class SwarmIntentExhibitor(object):
     
     def pack_to_objtracks(self, lookback_start=1, lookback_len=10, vis=False):
         _num_objs = self.uav_xys.shape[0]
-        # import pdb; pdb.set_trace()
 
         if lookback_start > 0:
             _obj_tracks = [basic_units.ObjTracks(self.uav_xys[_o_i, -lookback_start-lookback_len:-lookback_start, 0], 
@@ -149,67 +148,94 @@ if __name__ == "__main__":
     swarm_intent_file = osp.join(swarm_intent_dir, "fast_pass_through_no03.xlsx")
     # swarm_intent_file = osp.join(swarm_intent_dir, "ext_search_no01.xlsx")
 
+    # 参数说明：
+    # swarm_intent_file: 人工构建的无人机轨迹文件，格式为xlsx，包含无人机轨迹数据
+    # interp_scale: 轨迹插值比例，表示将原始轨迹插值成interp_scale倍长度的轨迹点
     intent_exh = SwarmIntentExhibitor(swarm_intent_file, interp_scale=20, vis=False)
+
+    # intent_exh.pack_to_objtracks 基于人工构建的轨迹，打包生成objtracks无人机轨迹对象
+    # 参数说明：
+    # lookback_start: 起始时间点，表示从输入轨迹的末尾，向前回溯lookback_start个轨迹点
+    # lookback_len: 回溯长度，表示从lookback_start时间点开始，回溯lookback_len个轨迹点
+    # vis: 是否可视化轨迹（完整轨迹点使用绿色虚线表示，pack_to_objtracks提取的轨迹点使用红色实线表示）
     test_objtracks = intent_exh.pack_to_objtracks(lookback_start=10, lookback_len=20, vis=True)
-    # import pdb; pdb.set_trace()
-    
+
     test_facilities = basic_units.BasicFacilities()
 
     test_sw = 2
     if test_sw == 1:
-        # 测试单个
+        # 功能类SingleUavBehavior，用于分析单个无人机的行为，包括加减速、转弯次数、方向变化、和建筑设施的距离等等
+        # analyze_win: 分析窗口，表示从输入轨迹的末尾，向前回溯analyze_win个轨迹点，必须比轨迹本身短
         _test_objbehavs = [int_rec.SingleUavBehavior(_obj_trk, analyze_win=19) for _obj_trk in test_objtracks]
         
         print("[Speed Ups]:")
         for _o_i, _o_behav in enumerate(_test_objbehavs):
-            _acc_bool, _acc_ratio = _o_behav.speed_up(return_val=True)
+            _acc_bool, _acc_ratio = _o_behav.speed_up(return_val=True) # 判断analyze_win部分轨迹是否加速
             print("Obj%d, speed-up: %s, acc-ratio: %.3f" % (_o_i, _acc_bool, _acc_ratio))
         
         print("[Slow Downs]:")
         for _o_i, _o_behav in enumerate(_test_objbehavs):
-            _dac_bool, _dac_ratio = _o_behav.slow_down(return_val=True)
+            _dac_bool, _dac_ratio = _o_behav.slow_down(return_val=True) # 判断analyze_win部分轨迹是否减速
             print("Obj%d, slow-down: %s, dac-ratio: %.3f" % (_o_i, _dac_bool, _dac_ratio))
         
         print("[Orient Change]:")
         for _o_i, _o_behav in enumerate(_test_objbehavs):
-            _orc_bool, _orc_degrees = _o_behav.orient_change(return_val=True)
+            _orc_bool, _orc_degrees = _o_behav.orient_change(return_val=True) # 判断analyze_win部分轨迹是否发生朝向角度变化
             print("Obj%d, orient-change: %s, diff-angle: %.3f" % (_o_i, _orc_bool, _orc_degrees))
 
         print("[Turning Frequency]:")
         for _o_i, _o_behav in enumerate(_test_objbehavs):
-            _tfr_bool, _tfr_freq = _o_behav.turning_frequency(return_val=True)
+            _tfr_bool, _tfr_freq = _o_behav.turning_frequency(return_val=True) # 判断analyze_win部分轨迹的转向次数是否超过阈值
             print("Obj%d, turning-freq: %s, freq: %.3f" % (_o_i, _tfr_bool, _tfr_freq))
         
         print("[Directing Facilities]:")
         for _o_i, _o_behav in enumerate(_test_objbehavs):
+            # 判断analyze_win部分轨迹是否指向建筑设施，每个轨迹点都给出指向的建筑设施名称（雷达、指挥中心、无人机机场）
             _direct_ts, _direct_facs, _direct_angles = _o_behav.directing_facilities(test_facilities, return_val=True)
             print("time-stamps: %s, facilities: %s" % (_direct_ts, _direct_facs))
         
         print("[Closing Facilities]:")
         for _o_i, _o_behav in enumerate(_test_objbehavs):
+            # 给出analyze_win部分轨迹中，每个轨迹点距离建筑设施的距离
             _distancing_stats, _closing_ratios = _o_behav.distance_to_facilities(test_facilities, return_val=True)
             print("closing to facilities: %s, close-ratios: %s" % (_distancing_stats, _closing_ratios))
         
         print("[Probing Facilities]:")
         for _o_i, _o_behav in enumerate(_test_objbehavs):
+            # 根据预设的探测范围（1km），给出analyze_win部分轨迹中，每个轨迹点探测到的建筑设施名称
             _probing_stats = _o_behav.probed_facilities(test_facilities)
             print("probed facilities: %s" % (_probing_stats))
         
         print("[Shrinking Speed]:")
         for _o_i, _o_behav in enumerate(_test_objbehavs):
+            # 根据analyze_win部分轨迹的最后三个点朝向，整个analyze_win部分的运动速度，估计无人机到达建筑设施的时间
             _arrive_bools, _arrive_times = _o_behav.estimate_arrive_time(test_facilities)
             print("arrive-bools: %s, arrive-times: %s" % (_arrive_bools, _arrive_times))
     
     elif test_sw == 2:
-        # 测试多个
+        # 测试涉及多个无人机的行为和特性评估方法
+        # 参数：analyze_win表示分析窗口大小，表示从输入轨迹的末尾，向前回溯每个无人机轨迹的analyze_win个点，必须比轨迹本身短
         _test_objbehavs = int_rec.MultiUavsBehavior(test_objtracks, analyze_win=19)
         
+        # 评估analyze_win部分轨迹中，无人机集群是否发生队形的收缩（间距缩小）
         _shrink_bool, _shrink_ratio = _test_objbehavs.shrink_fleet(return_val=True)
         print("Shrink-fleet: %s, shrink-ratio: %.3f" % (_shrink_bool, _shrink_ratio))
 
+        # 评估analyze_win部分轨迹中，无人机集群是否发生队形的扩散（间距放大）
         _spread_bool, _spread_ratio = _test_objbehavs.spread_fleet(return_val=True)
         print("Spread-fleet: %s, spread-ratio: %.3f" % (_spread_bool, _spread_ratio))
 
-        _targeting_targets, _arrive_times = _test_objbehavs.targeting_same_facilities(test_facilities)
-        print("Targeting-facilities: %s, arrive-times: %s" % (_targeting_targets, _arrive_times))
+        # 评估analyze_win部分轨迹中，被1个以上无人机朝向的建筑设施
+        _targeting_targets_info = _test_objbehavs.targeting_same_facilities(test_facilities)
+        print("Targeting-facilities: %s, arrive-uavs: %s" % ([_k for _k in _targeting_targets_info.keys()], 
+                                                              [_targeting_targets_info[_k]['uav_ids'] for _k in _targeting_targets_info.keys()]))
+
+        # 基于analyze_win部分轨迹的最后两个点位置和运动方向，给出无人集群的分群和每个分群的队形识别结果
+        _cluster_labels, _form_types, _form_names = _test_objbehavs.infer_cluster_formations()
+        print("Fleet-Formations: %s, formation-names: %s" % (_form_types, _form_names))
+        
+        # 结合analzye_win部分轨迹点的分群和队形识别结果，进行敌方集群的意图识别（结合基础分群和队形识别结果）
+        
+        
+        import pdb; pdb.set_trace()
         

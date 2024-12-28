@@ -99,5 +99,3 @@ if __name__ == "__main__":
         basic_cfg_parms = basic_units.GlobalConfigs()
         basic_facility_parms = basic_units.BasicFacilities()
         print("Params loaded in %.3fsecs" % (time.time() - _tic))
-
-        import pdb; pdb.set_trace()

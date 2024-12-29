@@ -27,6 +27,8 @@ class GlobalConfigs(object):
         self.FORMATION_RECOG_MODEL_DIR = osp.join(DEFAULT_WS_ROOT, 'pretrained_models', 'formation_recognition')
         self.FORMATION_RECOG_MODEL_FILE = osp.join(self.FORMATION_RECOG_MODEL_DIR, 'form_recog_model_192000.pth')
         
+        self.INTENTION_RECOG_RULES_FILE = osp.join(DEFAULT_WS_ROOT, 'formation_recognition', 'recog_rules', 'basic_intentions_rules.pl')
+        
         # UAV特性分析参数
         self.SPEED_CHANGE_THRESHOLD = 0.5
         self.ORIENT_CHANGE_THRESHOLD = None
@@ -58,6 +60,8 @@ class GlobalConfigs(object):
             self.FORMATION_RECOG_TYPES = [_str.strip() for _str in _config['DEFAULT']['FORMATION_RECOG_TYPES'].split(',')]
             self.FORMATION_RECOG_MODEL_DIR = osp.join(DEFAULT_WS_ROOT, *_config['DEFAULT']['FORMATION_RECOG_MODEL_DIR'].split('/'))
             self.FORMATION_RECOG_MODEL_FILE = osp.join(self.FORMATION_RECOG_MODEL_DIR, *_config['DEFAULT']['FORMATION_RECOG_MODEL_FILE'].split('/'))
+            
+            self.INTENTION_RECOG_RULES_FILE = osp.join(DEFAULT_WS_ROOT, *_config['DEFAULT']['INTENTION_INFER_RULES_FILE'].split('/'))
             
             self.SPEED_CHANGE_THRESHOLD = float(_config['SINGLE_UAV_BEHAVIOR']['SPEED_CHANGE_THRESHOLD'])
             self.ORIENT_CHANGE_THRESHOLD = float(_config['SINGLE_UAV_BEHAVIOR']['ORIENT_CHANGE_THRESHOLD'])
@@ -94,6 +98,9 @@ class BasicFacilities(object):
 
         self._load_rings_coords()
         self.refresh_categories()
+    
+    def __len__(self):
+        return len(self.total_facilities)
     
     def _load_rings_coords(self, cfg_file=None):
         if cfg_file is None:

@@ -9,6 +9,9 @@ import numpy as np
 from scipy.signal import find_peaks
 import matplotlib.pyplot as plt
 
+from problog.program import PrologFile, PrologString
+from problog import get_evaluatable
+
 from formation_recognition import basic_units
 from formation_recognition import clusters_recognition as clus_rec
 from formation_recognition import formation_recognition as form_rec
@@ -19,6 +22,37 @@ class SingleUavBehavior(object):
         self.win_size = analyze_win
         
         self.config_parms = basic_units.GlobalConfigs()
+    
+    def flying_speed(self, speed_thresholds=[5, 10], lookback=3, return_val=False):
+        """ 对无人机飞行速度进行等级划分 """
+        _avg_end_speed = self.track.move_speed(lookback=lookback)
+        
+        _speed_level = 'none'
+        _level_score = None
+        
+        """ slow阶段：越低越接近1.0；
+            fast阶段：越高越接近1.0；
+            medium阶段：越接近中间速度越接近1.0.
+        """
+        if _avg_end_speed < speed_thresholds[0]:
+            _speed_level = 'slow'
+            _level_score = 0.7 + 0.3 * (speed_thresholds[0] - _avg_end_speed) / speed_thresholds[0]
+        elif _avg_end_speed > speed_thresholds[1]:
+            _speed_level = 'fast'
+            _level_score = 0.7 + 0.3 * (1 - speed_thresholds[1]/_avg_end_speed)
+        else:
+            _speed_level = 'medium'
+            _speed_thresholds_center = np.mean(speed_thresholds)
+            
+            if _avg_end_speed < np.mean(speed_thresholds):
+                _level_score = 0.7 + 0.3 * (_avg_end_speed - np.mean(speed_thresholds)) / (_speed_thresholds_center - speed_thresholds[0])
+            else:
+                _level_score = 0.7 + 0.3 * (speed_thresholds[1] - _avg_end_speed) / (speed_thresholds[1] - _speed_thresholds_center)
+        
+        if not return_val:
+            return _speed_level, _level_score
+        else:
+            return _speed_level, _level_score, _avg_end_speed
     
     def speed_up(self, speed_up_threshold=None, return_val=False):
         """ 识别敌方无人机是否加速 """
@@ -35,15 +69,22 @@ class SingleUavBehavior(object):
         if (_max_acc_ratio > speed_up_threshold) \
             and (_argmax_idx > _argmin_idx) \
             and (np.mean(_movements[-_half_win_size:]) > np.mean(_movements[:_half_win_size])):
+            
+            # 对无人机的加速比例进行分阶段分类
+            # 特征值：加速speed_up_threshold的时候，给出估计值为0.8
+            _acc_score_p = 0.8
+            _acc_score_alpha = (1 - _acc_score_p) / _acc_score_p * speed_up_threshold
+            _acc_score = 1 - _acc_score_alpha / (_max_acc_ratio + _acc_score_alpha)
+        
             if not return_val:
-                return True
+                return True, _acc_score
             else:
-                return True, _max_acc_ratio
+                return True, _acc_score, _max_acc_ratio
         else:
             if not return_val:
-                return False
+                return False, 0.0
             else:
-                return False, _max_acc_ratio
+                return False, 0.0, _max_acc_ratio
     
     def slow_down(self, slow_down_threshold=None, return_val=False):
         """ 识别敌方无人机是否减速 """
@@ -55,20 +96,27 @@ class SingleUavBehavior(object):
         
         _argmin_idx = np.argmin(_movements)
         _argmax_idx = np.argmax(_movements)
-        _max_acc_ratio = np.abs(_movements[_argmax_idx] - _movements[_argmin_idx]) / _movements[_argmin_idx]
+        _max_dac_ratio = np.abs(_movements[_argmax_idx] - _movements[_argmin_idx]) / _movements[_argmax_idx]
         
-        if (_max_acc_ratio > slow_down_threshold) \
+        if (_max_dac_ratio > slow_down_threshold) \
             and (_argmax_idx < _argmin_idx) \
             and (np.mean(_movements[-_half_win_size:]) < np.mean(_movements[:_half_win_size])):
+            
+            # 计算减速程度的分值
+            # 当减速比例为slow_down_threshold的时候，分值为0.8
+            _dac_score_p = 0.8
+            _dac_score_alpha = _dac_score_p * slow_down_threshold / (1 - slow_down_threshold)
+            _dac_score = _dac_score_alpha * (1 / _max_dac_ratio - 1)
+            
             if not return_val:
-                return True
+                return True, _dac_score
             else:
-                return True, _max_acc_ratio
+                return True, _dac_score, _max_dac_ratio
         else:
             if not return_val:
-                return False
+                return False, 0.0
             else:
-                return False, _max_acc_ratio
+                return False, 0.0, _max_dac_ratio
     
     def orient2start_diffs_rectify(self, orient_angles):
         """ 如果前后方向角差值超过180度，则进行修正，假设角度在-180 ~ 180度之间 """
@@ -100,15 +148,21 @@ class SingleUavBehavior(object):
         _max2min_angle_diff = np.max(_orient_angles) - np.min(_orient_angles)
 
         if _max2min_angle_diff > angle_change_threshold:
+            # 计算转向程度的分值
+            # 当转向角度为angle_change_threshold的时候，分值为0.
+            _ori_chg_score_p = 0.7
+            _ori_chg_alpha = (1 - _ori_chg_score_p) * angle_change_threshold
+            _ori_chg_score = 1.0 - _ori_chg_alpha / _max2min_angle_diff
+            
             if not return_val:
-                return True
+                return True, _ori_chg_score
             else:
-                return True, _max2min_angle_diff
+                return True, _ori_chg_score, _max2min_angle_diff
         else:
             if not return_val:
-                return False
+                return False, 0.0
             else:
-                return False, _max2min_angle_diff
+                return False, 0.0, _max2min_angle_diff
     
     def turning_frequency(self, change_freq_threshold=None, angle_change_threshold=None, return_val=False):
         """ 识别敌方飞机转向频率是否高 """
@@ -145,68 +199,63 @@ class SingleUavBehavior(object):
                 _turning_count = 1
             else:
                 _turning_count = 0
-            
-            if _turning_count >= change_freq_threshold:
-                if not return_val:
-                    return True
-                else:
-                    return True, _turning_count
-            else:
-                if not return_val:
-                    return False
-                else:
-                    return False, _turning_count
-
-        # 在序列的开头和结束部分补充必要的peak和valley标记
-        if (_pv_types[0] == 'v') and (_ori2mean_diff_angles[0] > _ori2mean_diff_angles[_pv_idxs[0]] + angle_change_threshold):
-            _pv_idxs = np.concatenate([np.array([0]), _pv_idxs])
-            _pv_types = np.concatenate([np.array(['p']), _pv_types])
-        elif (_pv_types[0] == 'p') and (_ori2mean_diff_angles[0] < _ori2mean_diff_angles[_pv_idxs[0]] - angle_change_threshold):
-            _pv_idxs = np.concatenate([np.array([0]), _pv_idxs])
-            _pv_types = np.concatenate([np.array(['v']), _pv_types])
         
-        if (_pv_types[-1] == 'v') and (_ori2mean_diff_angles[-1] > _ori2mean_diff_angles[_pv_idxs[-1]] + angle_change_threshold):
-            _pv_idxs = np.concatenate([_pv_idxs, np.array([len(_ori2mean_diff_angles) - 1])])
-            _pv_types = np.concatenate([_pv_types, np.array(['p'])])
-        elif (_pv_types[-1] == 'p') and (_ori2mean_diff_angles[-1] < _ori2mean_diff_angles[_pv_idxs[-1]] - angle_change_threshold):
-            _pv_idxs = np.concatenate([_pv_idxs, np.array([len(_ori2mean_diff_angles) - 1])])
-            _pv_types = np.concatenate([_pv_types, np.array(['v'])])
+        else:
+            # 在序列的开头和结束部分补充必要的peak和valley标记
+            if (_pv_types[0] == 'v') and (_ori2mean_diff_angles[0] > _ori2mean_diff_angles[_pv_idxs[0]] + angle_change_threshold):
+                _pv_idxs = np.concatenate([np.array([0]), _pv_idxs])
+                _pv_types = np.concatenate([np.array(['p']), _pv_types])
+            elif (_pv_types[0] == 'p') and (_ori2mean_diff_angles[0] < _ori2mean_diff_angles[_pv_idxs[0]] - angle_change_threshold):
+                _pv_idxs = np.concatenate([np.array([0]), _pv_idxs])
+                _pv_types = np.concatenate([np.array(['v']), _pv_types])
+            
+            if (_pv_types[-1] == 'v') and (_ori2mean_diff_angles[-1] > _ori2mean_diff_angles[_pv_idxs[-1]] + angle_change_threshold):
+                _pv_idxs = np.concatenate([_pv_idxs, np.array([len(_ori2mean_diff_angles) - 1])])
+                _pv_types = np.concatenate([_pv_types, np.array(['p'])])
+            elif (_pv_types[-1] == 'p') and (_ori2mean_diff_angles[-1] < _ori2mean_diff_angles[_pv_idxs[-1]] - angle_change_threshold):
+                _pv_idxs = np.concatenate([_pv_idxs, np.array([len(_ori2mean_diff_angles) - 1])])
+                _pv_types = np.concatenate([_pv_types, np.array(['v'])])
 
-        # 检查开始与结束位置的角度与相邻peak、valley的差异
-        _cur_pv_type = None
-        _cur_pv_idx = None
+            # 检查开始与结束位置的角度与相邻peak、valley的差异
+            _cur_pv_type = None
+            _cur_pv_idx = None
 
-        for _pv_i, (_pv_idx, _pv_type) in enumerate(zip(_pv_idxs, _pv_types)):
-            if _pv_i == 0:
-                _cur_pv_type = _pv_type
-                _cur_pv_idx = _pv_idx
-                continue
-
-            if _cur_pv_type == 'p':
-                if _pv_type == 'p':
-                    if _ori2mean_diff_angles[_pv_idx] > _ori2mean_diff_angles[_cur_pv_idx]:
-                        _cur_pv_idx = _pv_idx
-                elif _pv_type == 'v':
-                    _turning_count += 1
+            for _pv_i, (_pv_idx, _pv_type) in enumerate(zip(_pv_idxs, _pv_types)):
+                if _pv_i == 0:
                     _cur_pv_type = _pv_type
-            elif _cur_pv_type == 'v':
-                if _pv_type == 'v':
-                    if _ori2mean_diff_angles[_pv_idx] < _ori2mean_diff_angles[_cur_pv_idx]:
-                        _cur_pv_idx = _pv_idx
-                elif _pv_type == 'p':
-                    _turning_count += 1
-                    _cur_pv_type = _pv_type
+                    _cur_pv_idx = _pv_idx
+                    continue
+
+                if _cur_pv_type == 'p':
+                    if _pv_type == 'p':
+                        if _ori2mean_diff_angles[_pv_idx] > _ori2mean_diff_angles[_cur_pv_idx]:
+                            _cur_pv_idx = _pv_idx
+                    elif _pv_type == 'v':
+                        _turning_count += 1
+                        _cur_pv_type = _pv_type
+                elif _cur_pv_type == 'v':
+                    if _pv_type == 'v':
+                        if _ori2mean_diff_angles[_pv_idx] < _ori2mean_diff_angles[_cur_pv_idx]:
+                            _cur_pv_idx = _pv_idx
+                    elif _pv_type == 'p':
+                        _turning_count += 1
+                        _cur_pv_type = _pv_type
 
         if _turning_count >= change_freq_threshold:
+            # 计算转向频率的分值，当刚好为 change_freq_threshold 时，转向次数分值为 0.7
+            _turn_freq_score_p = 0.7
+            _turn_freq_score_alpha = change_freq_threshold * (1 - _turn_freq_score_p)
+            _turn_freq_score = 1.0 - _turn_freq_score_alpha / _turning_count
+            
             if return_val:
-                return True, _turning_count
+                return True, _turn_freq_score, _turning_count
             else:
-                return True
+                return True, _turn_freq_score
         else:
             if return_val:
-                return False, _turning_count
+                return False, 0.0, _turning_count
             else:
-                return False
+                return False, 0.0
 
     def targeting_judges(self, move_direct_angles, targeting_angles, targeting_angle_eps=None):
         if targeting_angle_eps is None:
@@ -220,10 +269,13 @@ class SingleUavBehavior(object):
                 _m2t_diff_angles[_i] = _ddeg + 360
 
         _targeting_bools = np.abs(_m2t_diff_angles) < targeting_angle_eps
-        return _targeting_bools
+        return _targeting_bools, np.abs(_m2t_diff_angles)
 
-    def directing_facilities(self, facilities:basic_units.BasicFacilities, lookback=None, return_val=False):
+    def directing_facilities(self, facilities:basic_units.BasicFacilities, targeting_angle_eps=None, lookback=None, return_val=False):
         """ 计算当前无人机的设施朝向情况 """
+        if targeting_angle_eps is None:
+            targeting_angle_eps = self.config_parms.DIRECTING_ANGLE_EPS
+            
         if lookback is None:
             lookback = self.win_size
             
@@ -232,33 +284,43 @@ class SingleUavBehavior(object):
         
         _to_facilities_bools = {}
         _to_facilities_degs = {}
+        _to_facilities_diffdegs = {}
 
         _ttl_facilities_locs = facilities.total_facilities
 
         for _fac in _ttl_facilities_locs:
             _to_facilities_degs[_fac] = self.track.to_position_angles(_ttl_facilities_locs[_fac], lookback=lookback)
-            _to_facilities_bools[_fac] = self.targeting_judges(_move_direct_degs, _to_facilities_degs[_fac])
+            _to_facilities_bools[_fac], _to_facilities_diffdegs[_fac] = self.targeting_judges(_move_direct_degs, _to_facilities_degs[_fac], targeting_angle_eps)
         
         _facilities_names_arr = np.array([_key for _key in _ttl_facilities_locs.keys()])
         _to_facilities_bools_mat = np.stack([_to_facilities_bools[_fac] for _fac in _to_facilities_bools], axis=1).reshape(-1, len(_facilities_names_arr))
-        _to_facilities_degs_mat = np.stack([_to_facilities_degs[_fac] for _fac in _to_facilities_degs], axis=1).reshape(-1, len(_facilities_names_arr))
+        _to_facilities_degs_mat = np.stack([_to_facilities_diffdegs[_fac] for _fac in _to_facilities_degs], axis=1).reshape(-1, len(_facilities_names_arr))
 
         # 将上述结果转换为朝向的设施名称的列表
         _targeting_facilities_names = []
         _targeting_facilities_degs = []
         
+        _tgt_deg_score_p = 0.4
+        _tgt_deg_score_alpha = targeting_angle_eps * _tgt_deg_score_p / (1 - _tgt_deg_score_p)
+        _targeting_facilities_scores = []
+
         for _targeted_bools, _targeted_degs in zip(_to_facilities_bools_mat, _to_facilities_degs_mat):
             if np.sum(_targeted_bools) <= 0:
                 _targeting_facilities_names.append(None)
                 _targeting_facilities_degs.append(None)
+                _targeting_facilities_scores.append(None)
             else:
                 _targeting_facilities_names.append(_facilities_names_arr[_targeted_bools].tolist())
                 _targeting_facilities_degs.append(_targeted_degs[_targeted_bools].tolist())
-
+                
+                _tgt_deg_scores = [(_tgt_deg_score_alpha / (_tgt_deg + _tgt_deg_score_alpha)) if _tgt_deg is not None else 0.0
+                                   for _tgt_deg in _targeted_degs[_targeted_bools]]
+                _targeting_facilities_scores.append(_tgt_deg_scores)
+        
         if return_val:
-            return _move_tstamps, _targeting_facilities_names, _targeting_facilities_degs
+            return _move_tstamps, _targeting_facilities_names, _targeting_facilities_scores, _targeting_facilities_degs
         else:
-            return _move_tstamps, _targeting_facilities_names
+            return _move_tstamps, _targeting_facilities_names, _targeting_facilities_scores
     
     def distance_to_facilities(self, facilities:basic_units.BasicFacilities, return_val=False):
         """ 计算当前无人机是否靠近设施 """
@@ -279,21 +341,26 @@ class SingleUavBehavior(object):
         # 基于无人机的运动速度和记录轨迹的时间长度，评估无人机是否切实靠近建筑物
         _interval_len = max(_uav_trj_ts) - min(_uav_trj_ts)
         _prob_move_dist = _interval_len * self.config_parms.SWARM_AVERAGE_SPEED * 0.5
-
+        
+        _dist_change_ratio_th = 0.2 # 在距离已经比较近的情况下，需要使用距离变化的比例进行判别
         _distances_changes = _first_half_maxdists - _second_half_mindists
+        _distances_change_ratios = np.divide(_distances_changes, _first_half_maxdists)
 
-        _closing_to_bools = _distances_changes > _prob_move_dist
-        _staying_distance_bools = np.abs(_distances_changes) <= _prob_move_dist
-        _keeping_away_bools = _distances_changes < -_prob_move_dist
+        _closing_to_bools = np.logical_or(_distances_changes > _prob_move_dist, np.abs(_distances_change_ratios) > _dist_change_ratio_th)
+        _staying_distance_bools = np.logical_and(np.abs(_distances_changes) <= _prob_move_dist, np.abs(_distances_change_ratios) <= _dist_change_ratio_th)
+        _keeping_away_bools = np.logical_or(_distances_changes < -_prob_move_dist, np.abs(_distances_change_ratios) > _dist_change_ratio_th)
 
         _distance_to_facilities_labels = ['none' for _iter in range(len(_ttl_facilities_locs))]
         for _iter, _cl_bool, _sd_bool, _ka_bool in zip(np.arange(len(_distances_changes)), _closing_to_bools, _staying_distance_bools, _keeping_away_bools):
             if _cl_bool:
                 _distance_to_facilities_labels[_iter] = 'closing'
+                _dist_change = _distances_changes[_iter]
             elif _sd_bool:
                 _distance_to_facilities_labels[_iter] = 'staying'
+                _dist_change = _distances_changes[_iter]
             elif _ka_bool:
                 _distance_to_facilities_labels[_iter] = 'away_from'
+                _dist_change = _distances_changes[_iter]
 
         if return_val:
             return _distance_to_facilities_labels, np.divide(_first_half_maxdists - _second_half_mindists, _first_half_maxdists)
@@ -431,7 +498,7 @@ class MultiUavsBehavior(object):
         _facs_names = [_nm for _nm in facilities.total_facilities.keys()]
         
         for _u_i, _u_behav in enumerate(self.objs_behavs):
-            _, _u_tgt_facs = _u_behav.directing_facilities(facilities, lookback=1)
+            _, _u_tgt_facs, _u_tgt_scores = _u_behav.directing_facilities(facilities, lookback=1)
             _arrive_bools, _arrive_times = _u_behav.estimate_arrive_time(facilities)
             
             if _u_tgt_facs[0] is None:
@@ -482,5 +549,155 @@ class IntentFactorExtractor(object):
     """ 基于规则的意图识别总函数：
         基于上述单体和多体的行为要素提取结果，使用Problog表达式描述意图识别要素
     """
-    def __init__(self, ):
+    def __init__(self, objs_tracks:list[basic_units.ObjTracks], basic_facilities:basic_units.BasicFacilities, analyze_win=18):
+        self.config_parms = basic_units.GlobalConfigs()
         
+        self.tracks = objs_tracks
+        self.facilities = basic_facilities
+        self.win_size = analyze_win
+        
+        self.objs_behavs = [SingleUavBehavior(_trk, analyze_win=self.win_size) for _trk in self.tracks]
+        self.mult_behavs = MultiUavsBehavior(self.tracks, analyze_win=self.win_size)
+        
+        self.intent_infer_rules = self._load_intent_infer_rules(self.config_parms.INTENTION_RECOG_RULES_FILE)
+        
+        self._single_uav_factors()
+    
+    def _load_intent_infer_rules(self, rules_fpath=None):
+        """ 读取文本文件中的推理规则 """
+        if rules_fpath is None:
+            rules_fpath = self.config_parms.INTENTION_RECOG_RULES_FILE
+        
+        with open(rules_fpath, 'r') as _f:
+            _rules_str = _f.read()
+        
+        return _rules_str
+    
+    def _single_uav_factors(self):
+        """ 生成面向单个无人机行为分析的认知知识 """
+        # 遍历单个无人机，获取主要的行为要素
+        _uavs_sgl_facts = []
+        
+        for _u_i, _sgl_behav in enumerate(self.objs_behavs):
+            _speed_level, _speed_level_score, _avg_speed = _sgl_behav.flying_speed(return_val=True)
+            _flying_speed_knowstr = self._pack_flying_speed(_sgl_behav.track.id, _speed_level, _speed_level_score)
+            _uavs_sgl_facts.append(_flying_speed_knowstr)
+            
+            _speed_up_bool, _speed_up_score, _speed_up_ratio = _sgl_behav.speed_up(return_val=True)
+            _slow_down_bool, _slow_down_score, _slow_down_ratio = _sgl_behav.slow_down(return_val=True)
+            if _speed_up_bool:
+                _acc_dac_knowstr = self._pack_speed_up(_sgl_behav.track.id, _speed_up_score)
+            elif _slow_down_bool:
+                _acc_dac_knowstr = self._pack_slow_down(_sgl_behav.track.id, _slow_down_score)
+            else:
+                _acc_dac_knowstr = self._pack_steady_speed(_sgl_behav.track.id, 0.7)
+            _uavs_sgl_facts.append(_acc_dac_knowstr)
+            
+            _orient_change_bool, _orient_change_score, _orient_change_ratio = _sgl_behav.orient_change(return_val=True)
+            _orient_change_knowstr = self._pack_orient_change(_sgl_behav.track.id, _orient_change_bool, _orient_change_score)
+            _uavs_sgl_facts.append(_orient_change_knowstr)
+            
+            _highfreq_turn_bool, _highfreq_turn_score, _turning_count = _sgl_behav.turning_frequency(return_val=True)
+            _turn_freq_knowstr = self._pack_turning_frequency(_sgl_behav.track.id, _highfreq_turn_bool, _highfreq_turn_score)
+            _uavs_sgl_facts.append(_turn_freq_knowstr)
+            
+            # 分析无人机朝向我方重要设施的情况
+            _facilities_names = [_key for _key in self.facilities.total_facilities.keys()]
+            
+            _probed_states = _sgl_behav.probed_facilities(self.facilities)
+            _probed_facilities_knowstr = self._pack_probed_state(_sgl_behav.track.id, _probed_states)
+            _uavs_sgl_facts.append(_probed_facilities_knowstr)
+            
+            _directed_ts, _directed_facilities, _directed_scores, _directed_degs = _sgl_behav.directing_facilities(self.facilities, lookback=None, return_val=True)
+            _directed_facilities_knowstr = self._pack_directing_to_facilities(_sgl_behav.track.id, _directed_ts, _directed_facilities, _directed_scores)
+            _uavs_sgl_facts.append(_directed_facilities_knowstr)
+            
+            _closing_labels, _closing_ratios = _sgl_behav.distance_to_facilities(self.facilities, return_val=True)
+            _closing_facilities_names = [_facilities_names[_iter] for _iter in range(len(self.facilities)) if _closing_labels[_iter]]
+            _closing_to_facilites_knowstr = self._pack_closing_to_facilities(_sgl_behav.track.id, _closing_facilities_names, _closing_labels)
+            _uavs_sgl_facts.append(_closing_to_facilites_knowstr)
+            
+        # 获取多机朝向主要建筑设施的情况
+        _same_targeting_states = self.mult_behavs.targeting_same_facilities(self.facilities)
+        
+        _problog_program = PrologString("\n".join(_uavs_sgl_facts) + "\n" + self.intent_infer_rules)
+        _result = get_evaluatable().create_from(_problog_program).evaluate()
+        
+        for query, probability in _result.items():
+            if probability > 0.0:
+                print(query, probability)
+        import pdb; pdb.set_trace()
+    
+    def _pack_flying_speed(self, uav_id, speed_level, level_score):
+        _fmt_str = "%.3f::flying_speed(%s, %s)." % (level_score, uav_id, speed_level)
+        return _fmt_str
+    
+    def _pack_speed_up(self, uav_id, speed_up_score):
+        _fmt_str = "%.3f::speed_up(%s). " % (speed_up_score, uav_id)
+        return _fmt_str
+    
+    def _pack_slow_down(self, uav_id, slow_down_score):
+        _fmt_str = "%.3f::slow_down(%s)." % (slow_down_score, uav_id)
+        return _fmt_str
+    
+    def _pack_steady_speed(self, uav_id, steady_speed_score=0.8):
+        _fmt_str = "%.3f::steady_speed(%s)." % (steady_speed_score, uav_id)
+        return _fmt_str
+    
+    def _pack_orient_change(self, uav_id, change_bool, change_score):
+        if change_bool:
+            _fmt_str = "%.3f::change_direction(%s, large)." % (change_score, uav_id)
+        else:
+            _fmt_str = "0.8::change_direction(%s, small)." % (uav_id)
+        
+        return _fmt_str
+    
+    def _pack_turning_frequency(self, uav_id, high_freq_turn_bool, high_freq_turn_score):
+        if high_freq_turn_bool:
+            _fmt_str= "%.3f::direct_fluctuate(%s, high)." % (high_freq_turn_score, uav_id)
+        else:
+            _fmt_str = "0.8::direct_fluctuate(%s, low)." % (uav_id)
+        
+        return _fmt_str
+    
+    def _pack_probed_state(self, uav_id, probed_states):
+        if len(probed_states) <= 0:
+            return ""
+        
+        _comb_fmt_strs = []
+        for _state in probed_states:
+            _fmt_str = "0.9::probed_facility(%s, %s, %.3f)." % (uav_id, _state["facility"], _state["tstamp"])
+            _comb_fmt_strs.append(_fmt_str)
+        
+        return "\n".join(_comb_fmt_strs)
+    
+    def _pack_directing_to_facilities(self, uav_id, directed_ts, directed_facs, directed_scores, last_n_direct=2):
+        if np.sum([_fac is not None for _fac in directed_facs]) <= 0:
+            return ""
+
+        # 找出最后N次朝向中包含的设施名称集合
+        _last_n_direct_facs = [_facs if _facs is not None else [] for _facs in directed_facs[-last_n_direct:]]
+        _last_n_direct_facs = np.unique(np.concatenate(_last_n_direct_facs))
+        
+        if len(_last_n_direct_facs) <= 0:
+            return "0.9::targeting_facility(%s, none, %.3f)." % (uav_id, directed_ts[-1])
+        
+        _directed_knows_list = []
+        for _fac in _last_n_direct_facs:
+            for _iter in range(len(directed_ts)):
+                if directed_facs[_iter] == _fac:
+                    _fmt_str = "%.3f::targeting_facility(%s, %s, %.3f)." % (directed_scores[_iter], uav_id, directed_facs[_iter], directed_ts[_iter])
+                    _directed_knows_list.append(_fmt_str)
+                    break
+        
+        return "\n".join(_directed_knows_list)
+
+    def _pack_closing_to_facilities(self, uav_id, facilities_names, closing_labels):
+        _comb_fmt_strs = []
+        
+        for _label, _fac in zip(closing_labels, facilities_names):
+            _fmt_str = "0.8::distance_to_facility(%s, %s, %s)." % (uav_id, _fac, _label)
+            _comb_fmt_strs.append(_fmt_str)
+
+        return "\n".join(_comb_fmt_strs)
+

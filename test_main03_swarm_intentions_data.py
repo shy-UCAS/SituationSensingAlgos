@@ -151,7 +151,7 @@ if __name__ == "__main__":
     # 参数说明：
     # swarm_intent_file: 人工构建的无人机轨迹文件，格式为xlsx，包含无人机轨迹数据
     # interp_scale: 轨迹插值比例，表示将原始轨迹插值成interp_scale倍长度的轨迹点
-    intent_exh = SwarmIntentExhibitor(swarm_intent_file, interp_scale=20, vis=False)
+    intent_exh = SwarmIntentExhibitor(swarm_intent_file, interp_scale=25, vis=False)
 
     # intent_exh.pack_to_objtracks 基于人工构建的轨迹，打包生成objtracks无人机轨迹对象
     # 参数说明：
@@ -159,10 +159,11 @@ if __name__ == "__main__":
     # lookback_len: 回溯长度，表示从lookback_start时间点开始，回溯lookback_len个轨迹点
     # vis: 是否可视化轨迹（完整轨迹点使用绿色虚线表示，pack_to_objtracks提取的轨迹点使用红色实线表示）
     test_objtracks = intent_exh.pack_to_objtracks(lookback_start=10, lookback_len=20, vis=True)
+    print("Objects speeds: %s" % ([_obj.move_speed() for _obj in test_objtracks]))
 
     test_facilities = basic_units.BasicFacilities()
 
-    test_sw = 2
+    test_sw = 3
     if test_sw == 1:
         # 功能类SingleUavBehavior，用于分析单个无人机的行为，包括加减速、转弯次数、方向变化、和建筑设施的距离等等
         # analyze_win: 分析窗口，表示从输入轨迹的末尾，向前回溯analyze_win个轨迹点，必须比轨迹本身短
@@ -235,7 +236,10 @@ if __name__ == "__main__":
         print("Fleet-Formations: %s, formation-names: %s" % (_form_types, _form_names))
         
         # 结合analzye_win部分轨迹点的分群和队形识别结果，进行敌方集群的意图识别（结合基础分群和队形识别结果）
-        
+    
+    elif test_sw == 3:
+        # 对一组无人机的单机和多机行为特性进行综合分析
+        intrec_obj = int_rec.IntentFactorExtractor(test_objtracks, test_facilities, analyze_win=18)
         
         import pdb; pdb.set_trace()
         

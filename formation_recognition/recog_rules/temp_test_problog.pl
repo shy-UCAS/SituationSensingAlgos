@@ -14,7 +14,7 @@
 0.737::change_direction(euav1, large).
 0.8::direct_fluctuate(euav1, low).
 0.9::probed_facility(euav1, hq_2, 8.000).
-
+0.415::targeting_facility(euav1, hq_2, 16.000).
 0.8::distance_to_facility(euav1, radar_1, closing).
 0.8::distance_to_facility(euav1, hq_1, closing).
 0.8::distance_to_facility(euav1, hq_2, closing).
@@ -36,7 +36,7 @@
 0.8::change_direction(euav3, small).
 0.8::direct_fluctuate(euav3, low).
 
-
+0.602::targeting_facility(euav3, hq_2, 2.000).
 0.8::distance_to_facility(euav3, radar_1, closing).
 0.8::distance_to_facility(euav3, hq_1, closing).
 0.8::distance_to_facility(euav3, hq_2, closing).
@@ -47,11 +47,15 @@
 0.8::change_direction(euav4, small).
 0.8::direct_fluctuate(euav4, low).
 
+0.630::targeting_facility(euav4, hq_1, 2.000).
+0.761::targeting_facility(euav4, hq_2, 2.000).
+0.576::targeting_facility(euav4, radar_1, 2.000).
 0.8::distance_to_facility(euav4, radar_1, closing).
 0.8::distance_to_facility(euav4, hq_1, closing).
 0.8::distance_to_facility(euav4, hq_2, closing).
 0.8::distance_to_facility(euav4, ua_1, closing).
 0.8::distance_to_facility(euav4, ua_2, closing).
+0.9::attack_same_facility([euav1, euav3, euav4], [77.58871971847125, 67.00647812557665, 74.41459909355643], sequential).
 1.0::defence_facility(ua_1). 1.0::defence_facility(ua_2). 1.0::defence_facility(ua_3). 
 1.0::defence_facility(radar_1). 1.0::defence_facility(radar_2). 1.0::defence_facility(radar_3).
 
@@ -65,8 +69,7 @@
 single_penetration(EUav) :-
     targeting_facility(EUav, I_Facility, _), important_facility(I_Facility),
     distance_to_facility(EUav, D_Facility, closing), defence_facility(D_Facility),
-    flying_speed(EUav, high),
-    tight_fleet(EUav).
+    flying_speed(EUav, high).
 
 % [Rules] recognizing reconnaisance intention
 single_reconnaisance(EUav) :-
@@ -103,18 +106,35 @@ is_member_of(X, [_|L]) :- is_member_of(X, L).
 % find_all_times(EUav, [Tl|T]) :- 
 
 sequential_attack(EUav) :-
-    attack_same_facility(EUavs, Times), is_member_of(EUav, EUavs),
-    change_direction(Euav, small),
-    sequential_time(Times).
+    attack_same_facility(EUavs, Times, sequential), is_member_of(EUav, EUavs),
+    change_direction(Euav, small).
 
 % [Rules] recognizing salvo attacks
 salvo_attack(EUav) :-
-    attack_same_facility(EUavs, Times), is_member_of(EUav, EUavs),
-    change_direction(EUav, small),
-    salvo_time(Times).
+    attack_same_facility(EUavs, Times, same_time), is_member_of(EUav, EUavs),
+    change_direction(EUav, small).
+
+% % test: hypothesized knowledges
+% 0.8::targeting_facility(euav1, hq_1).
+% 0.9::distance_to_facility(euav1, radar_1, closing).
+% 0.7::distance_to_facility(euav1, hq_1, away_from).
+% 0.3::direct_fluctuate(euav1).
+% 0.9::change_direction(euav1, small).
+% 0.6::flying_speed(euav1, high).
+% 0.7::tight_fleet(euav1).
+
+% 0.7::targeting_facility(euav2, ua_1).
+% 0.8::distance_to_facility(euav2, ua_1, closing).
+% 0.6::distance_to_facility(euav2, hq_1, away_from).
+% 0.9::direct_fluctuate(euav2).
+% 0.95::change_direction(euav2, large).
+% 0.3::flying_speed(euav2, high).
+% 0.1::tight_fleet(euav2).
 
 % querying conclusions
 query(single_penetration(EUav)).
 query(single_reconnaisance(EUav)).
 query(single_detouring(EUav)).
 query(single_fast_passing(EUav)).
+query(sequential_attack(EUav)).
+query(salvo_attack(EUav)).

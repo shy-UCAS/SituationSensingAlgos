@@ -49,15 +49,13 @@ is_member_of(X, [_|L]) :- is_member_of(X, L).
 % find_all_times(EUav, [Tl|T]) :- 
 
 sequential_attack(EUav) :-
-    attack_same_facility(EUavs, Times), is_member_of(EUav, EUavs),
-    change_direction(Euav, small),
-    sequential_time(Times).
+    attack_same_facility(EUavs, Times, sequential), is_member_of(EUav, EUavs),
+    change_direction(Euav, small).
 
 % [Rules] recognizing salvo attacks
 salvo_attack(EUav) :-
-    attack_same_facility(EUavs, Times), is_member_of(EUav, EUavs),
-    change_direction(EUav, small),
-    salvo_time(Times).
+    attack_same_facility(EUavs, Times, same_time), is_member_of(EUav, EUavs),
+    change_direction(EUav, small).
 
 % % test: hypothesized knowledges
 % 0.8::targeting_facility(euav1, hq_1).
@@ -81,3 +79,5 @@ query(single_penetration(EUav)).
 query(single_reconnaisance(EUav)).
 query(single_detouring(EUav)).
 query(single_fast_passing(EUav)).
+query(sequential_attack(EUav)).
+query(salvo_attack(EUav)).

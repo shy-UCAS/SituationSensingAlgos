@@ -619,6 +619,11 @@ class IntentFactorExtractor(object):
             
         # 获取多机朝向主要建筑设施的情况
         _same_targeting_states = self.mult_behavs.targeting_same_facilities(self.facilities)
+        _same_targeting_knowstr = self._pack_arrival_at_same_facility(_same_targeting_states)
+        _uavs_sgl_facts.append(_same_targeting_knowstr)
+        
+        _clustering, _, _form_typenames = self.mult_behavs.infer_cluster_formations()
+        _clustering_knowstr = self._pack_cluster_formations(_clustering, _form_typenames)
         
         _problog_program = PrologString("\n".join(_uavs_sgl_facts) + "\n" + self.intent_infer_rules)
         _result = get_evaluatable().create_from(_problog_program).evaluate()
@@ -626,6 +631,7 @@ class IntentFactorExtractor(object):
         for query, probability in _result.items():
             if probability > 0.0:
                 print(query, probability)
+        
         import pdb; pdb.set_trace()
     
     def _pack_flying_speed(self, uav_id, speed_level, level_score):
@@ -675,6 +681,7 @@ class IntentFactorExtractor(object):
         if np.sum([_fac is not None for _fac in directed_facs]) <= 0:
             return ""
 
+        # import pdb; pdb.set_trace()
         # 找出最后N次朝向中包含的设施名称集合
         _last_n_direct_facs = [_facs if _facs is not None else [] for _facs in directed_facs[-last_n_direct:]]
         _last_n_direct_facs = np.unique(np.concatenate(_last_n_direct_facs))
@@ -685,8 +692,10 @@ class IntentFactorExtractor(object):
         _directed_knows_list = []
         for _fac in _last_n_direct_facs:
             for _iter in range(len(directed_ts)):
-                if directed_facs[_iter] == _fac:
-                    _fmt_str = "%.3f::targeting_facility(%s, %s, %.3f)." % (directed_scores[_iter], uav_id, directed_facs[_iter], directed_ts[_iter])
+                if _fac in directed_facs[_iter]:
+                    # import pdb; pdb.set_trace()
+                    _fmt_str = "%.3f::targeting_facility(%s, %s, %.3f)."  \
+                        % (directed_scores[_iter][directed_facs[_iter].index(_fac)], uav_id, _fac, directed_ts[_iter])
                     _directed_knows_list.append(_fmt_str)
                     break
         
@@ -701,3 +710,48 @@ class IntentFactorExtractor(object):
 
         return "\n".join(_comb_fmt_strs)
 
+    def _pack_arrival_at_same_facility(self, same_arrival_state, same_arrival_eps=10):
+        _fmt_strs_list = []
+        
+        for _fac, _arrive_state in same_arrival_state.items():
+            if len(_arrive_state['uav_ids']) >= 2:
+                _arrival_times = _arrive_state['arrive_times']
+                _arrival_timediffs = np.abs(np.array(_arrival_times).reshape(-1, 1) - np.array(_arrival_times).reshape(1, -1))
+                
+                # import pdb; pdb.set_trace()
+                if np.max(_arrival_timediffs) <= same_arrival_eps:
+                    _fmt_str = "0.9::attack_same_facility([%s], [%s], same_time)." % (', '.join(_arrive_state['uav_ids']), 
+                                                                                      ', '.join([str(_t) for _t in _arrive_state['arrive_times']]))
+                else:
+                    _fmt_str = "0.9::attack_same_facility([%s], [%s], sequential)." % (', '.join(_arrive_state['uav_ids']), 
+                                                                                       ', '.join([str(_t) for _t in _arrive_state['arrive_times']]))
+
+                _fmt_strs_list.append(_fmt_str)
+
+        if len(_fmt_strs_list) > 0:
+            return "\n".join(_fmt_strs_list)
+        else:
+            return "0.9::attack_same_facility([], [], none)."
+
+    def _pack_cluster_formations(self, clustering_labels, formation_typenames):
+        _uniq_cluster_labels, _clusters_counts = np.unique(clustering_labels, return_counts=True)
+        _num_clusters = len(_uniq_cluster_labels)
+
+        _fmt_strs_list = []
+        if _num_clusters == 1:
+            if _clusters_counts[0] >= 2:
+                _in_cluster_eidxs = np.where(clustering_labels == _uniq_cluster_labels[0])[0]
+                _fmt_strs = ["0.9::tight_fleet(%s)." % (self.tracks[_idx]) for _idx in _in_cluster_eidxs]
+                _fmt_strs_list.extend(_fmt_strs)
+        else:
+            for _c_label, _c_count in zip(_uniq_cluster_labels, _clusters_counts):
+                if _c_count >= 2:
+                    _in_cluster_eidxs = np.where(clustering_labels == _c_label)[0]
+                    _fmt_strs = ["0.9::tight_fleet(%s)." % (self.tracks[_idx]) for _idx in _in_cluster_eidxs]
+                    _fmt_strs_list.extend(_fmt_strs)
+        
+        # import pdb; pdb.set_trace()
+        if len(_fmt_strs_list) > 0:
+            return "\n".join(_fmt_strs_list)
+        else:
+            return ""

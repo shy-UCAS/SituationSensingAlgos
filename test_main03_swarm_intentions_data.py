@@ -130,6 +130,23 @@ class SwarmIntentExhibitor(object):
         if vis:
             fig, ax = plt.subplots(1, 1, figsize=(10, 10))
 
+            # 绘制主要设施的位置
+            # HQ的位置
+            ax.scatter(self.hq_locs[:, 0], self.hq_locs[:, 1], c="r", marker="*", s=100, label='head quartors')
+            for _hq_i, _hq_id in enumerate(self.hq_ids):
+                ax.text(self.hq_locs[_hq_i, 0] + 10, self.hq_locs[_hq_i, 1] + 10, _hq_id)
+
+            # uav airport的位置
+            ax.scatter(self.airport_locs[:, 0], self.airport_locs[:, 1], c="r", marker="^", s=100, label='uav airports')
+            for _airport_i, _airport_id in enumerate(self.airport_ids):
+                ax.text(self.airport_locs[_airport_i, 0] + 10, self.airport_locs[_airport_i, 1] + 10, _airport_id)
+
+            # radar的位置
+            ax.scatter(self.radar_locs[:, 0], self.radar_locs[:, 1], c="r", marker="x", s=100, label='radars')
+            for _radar_i, _radar_id in enumerate(self.radar_ids):
+                ax.text(self.radar_locs[_radar_i, 0] + 10, self.radar_locs[_radar_i, 1] + 10, _radar_id)
+
+
             for _obj_i, _obj_trk in enumerate(_obj_tracks):
                 _ttl_xs, _ttl_ys = self.uav_xys[_obj_i, :, 0], self.uav_xys[_obj_i, :, 1]
                 _obj_ts, _obj_xs, _obj_ys = _obj_trk.last_n_locations(lookback_len)
@@ -140,6 +157,7 @@ class SwarmIntentExhibitor(object):
                 ax.text(_obj_xs[-1], _obj_ys[-1], "euav%d" % (_obj_i), c="red", fontsize=10)
             
             ax.grid(True, linestyle='--', linewidth=0.5)
+            plt.legend()
             plt.show()
         return _obj_tracks
 
@@ -151,14 +169,14 @@ if __name__ == "__main__":
     # 参数说明：
     # swarm_intent_file: 人工构建的无人机轨迹文件，格式为xlsx，包含无人机轨迹数据
     # interp_scale: 轨迹插值比例，表示将原始轨迹插值成interp_scale倍长度的轨迹点
-    intent_exh = SwarmIntentExhibitor(swarm_intent_file, interp_scale=25, vis=False)
+    intent_exh = SwarmIntentExhibitor(swarm_intent_file, interp_scale=20, vis=False)
 
     # intent_exh.pack_to_objtracks 基于人工构建的轨迹，打包生成objtracks无人机轨迹对象
     # 参数说明：
     # lookback_start: 起始时间点，表示从输入轨迹的末尾，向前回溯lookback_start个轨迹点
     # lookback_len: 回溯长度，表示从lookback_start时间点开始，回溯lookback_len个轨迹点
     # vis: 是否可视化轨迹（完整轨迹点使用绿色虚线表示，pack_to_objtracks提取的轨迹点使用红色实线表示）
-    test_objtracks = intent_exh.pack_to_objtracks(lookback_start=10, lookback_len=20, vis=True)
+    test_objtracks = intent_exh.pack_to_objtracks(lookback_start=10, lookback_len=30, vis=True)
     print("Objects speeds: %s" % ([_obj.move_speed() for _obj in test_objtracks]))
 
     test_facilities = basic_units.BasicFacilities()
@@ -171,28 +189,28 @@ if __name__ == "__main__":
         
         print("[Speed Ups]:")
         for _o_i, _o_behav in enumerate(_test_objbehavs):
-            _acc_bool, _acc_ratio = _o_behav.speed_up(return_val=True) # 判断analyze_win部分轨迹是否加速
+            _acc_bool, _acc_score, _acc_ratio = _o_behav.speed_up(return_val=True) # 判断analyze_win部分轨迹是否加速
             print("Obj%d, speed-up: %s, acc-ratio: %.3f" % (_o_i, _acc_bool, _acc_ratio))
         
         print("[Slow Downs]:")
         for _o_i, _o_behav in enumerate(_test_objbehavs):
-            _dac_bool, _dac_ratio = _o_behav.slow_down(return_val=True) # 判断analyze_win部分轨迹是否减速
+            _dac_bool, _dac_score, _dac_ratio = _o_behav.slow_down(return_val=True) # 判断analyze_win部分轨迹是否减速
             print("Obj%d, slow-down: %s, dac-ratio: %.3f" % (_o_i, _dac_bool, _dac_ratio))
         
         print("[Orient Change]:")
         for _o_i, _o_behav in enumerate(_test_objbehavs):
-            _orc_bool, _orc_degrees = _o_behav.orient_change(return_val=True) # 判断analyze_win部分轨迹是否发生朝向角度变化
+            _orc_bool, _orc_score, _orc_degrees = _o_behav.orient_change(return_val=True) # 判断analyze_win部分轨迹是否发生朝向角度变化
             print("Obj%d, orient-change: %s, diff-angle: %.3f" % (_o_i, _orc_bool, _orc_degrees))
 
         print("[Turning Frequency]:")
         for _o_i, _o_behav in enumerate(_test_objbehavs):
-            _tfr_bool, _tfr_freq = _o_behav.turning_frequency(return_val=True) # 判断analyze_win部分轨迹的转向次数是否超过阈值
+            _tfr_bool, _tfr_score, _tfr_freq = _o_behav.turning_frequency(return_val=True) # 判断analyze_win部分轨迹的转向次数是否超过阈值
             print("Obj%d, turning-freq: %s, freq: %.3f" % (_o_i, _tfr_bool, _tfr_freq))
         
         print("[Directing Facilities]:")
         for _o_i, _o_behav in enumerate(_test_objbehavs):
             # 判断analyze_win部分轨迹是否指向建筑设施，每个轨迹点都给出指向的建筑设施名称（雷达、指挥中心、无人机机场）
-            _direct_ts, _direct_facs, _direct_angles = _o_behav.directing_facilities(test_facilities, return_val=True)
+            _direct_ts, _direct_facs, _direct_scores, _direct_angles = _o_behav.directing_facilities(test_facilities, return_val=True)
             print("time-stamps: %s, facilities: %s" % (_direct_ts, _direct_facs))
         
         print("[Closing Facilities]:")
@@ -239,7 +257,11 @@ if __name__ == "__main__":
     
     elif test_sw == 3:
         # 对一组无人机的单机和多机行为特性进行综合分析
-        intrec_obj = int_rec.IntentFactorExtractor(test_objtracks, test_facilities, analyze_win=18)
+        int_extrctr = int_rec.IntentFactorExtractor(test_objtracks, test_facilities, analyze_win=18)
+        factor_knows = int_extrctr.get_knows()
         
-        import pdb; pdb.set_trace()
+        intent_inferor = int_rec.IntentionEvaluator([_k for _k in factor_knows if _k != ''])
+        intent_knows = intent_inferor.get_knows()
+
+        # import pdb; pdb.set_trace()
         

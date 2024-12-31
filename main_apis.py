@@ -84,6 +84,7 @@ def recog_fleet_formtype(uav_coords_str, clustering_str):
 
 def ring_breach_infer(uav_coords_str, clustering_str):
     """ 基于输入的无人机轨迹数据、无人机分群情况，给出各轨迹点上面无人机的突破情况 """
+
     return formated_output
 
 if __name__ == '__main__':
@@ -94,8 +95,8 @@ if __name__ == '__main__':
 
     # 读取数据
     _man_trajs_infos = [{'filename': 'fleet_form_trj01_shrink1.0.xlsx', 'scale': 7.0},
-                            {'filename': 'fleet_form_trj02_shrink1.5.xlsx', 'scale': 12.0},
-                            {'filename': 'fleet_form_trj03_shrink1.2.xlsx', 'scale': 14.0},]
+                        {'filename': 'fleet_form_trj02_shrink1.5.xlsx', 'scale': 12.0},
+                        {'filename': 'fleet_form_trj03_shrink1.2.xlsx', 'scale': 14.0},]
     _test_idx = 0
     processor = TrajectoryExhibitor(osp.join(_man_trajs_dir, _man_trajs_infos[_test_idx]['filename']), _man_trajs_infos[_test_idx]['scale'])
     
@@ -121,7 +122,7 @@ if __name__ == '__main__':
         
         input_json_str = json.dumps(input_json_dict) # 包含无人机轨迹的json字符串
 
-        # print(input_json_str)
+        print(input_json_str)
         clustering_result = get_uavs_clusters(input_json_str)
         print(clustering_result)
 

@@ -39,9 +39,10 @@ class TrajectoryExhibitor(object):
         假设 Excel 文件的表头为：时间，目标1_x，目标1_y，目标2_x，目标2_y，...
         """
         self.data = pd.read_excel(self.file_path)
+        self.facilities = basic_units.BasicFacilities()
             
         self.time = self.data['time']  # 第一列为时间
-        self.trajectories = self.data.iloc[:, 1:] / self.coord_scale  # 后面的列为轨迹数据
+        self.trajectories = self.data.iloc[:, 1:] # 后面的列为轨迹数据
         
         _new_time = np.linspace(self.time.iloc[0], self.time.iloc[-1], len(self.time) * self.interp_scale)
         _interp_coords_comb = np.zeros((len(_new_time), self.trajectories.shape[1]))
@@ -109,6 +110,10 @@ class TrajectoryExhibitor(object):
             formtype_labels.clear()
             
             time_step, points_data = frame
+
+            # 绘制主要设施和防御圈多边形
+            ax.fill(self.facilities.RING2_XYS[:, 0], self.facilities.RING2_XYS[:, 1], color='yellow', alpha=0.3)
+            ax.fill(self.facilities.RING1_XYS[:, 0], self.facilities.RING1_XYS[:, 1], color='red', alpha=0.3)
             
             for i, (line, point) in enumerate(zip(lines, points)):
                 # 提取当前目标的轨迹和位置
@@ -187,7 +192,7 @@ if __name__ == "__main__":
         # print(f"Time: {time_step}, Positions: {positions}")
         if _trj_counter <= 0:
             _num_objs = len(positions)
-            _trj_objs_list = [basic_units.ObjTracks([_pos[0]], [_pos[1]]) for _pos in positions]
+            _trj_objs_list = [basic_units.ObjTracks([_pos[0]], [_pos[1]], ts=[time_step]) for _pos in positions]
             
             _prev_positions = positions
             _trj_counter = _trj_counter + 1
@@ -196,9 +201,9 @@ if __name__ == "__main__":
         
         # add new positions to existing trajectories
         for _p_iter, _pos in enumerate(positions):
-            _trj_objs_list[_p_iter].append_location(_pos[0], _pos[1])
+            _trj_objs_list[_p_iter].append_location(_pos[0], _pos[1], t=time_step)
         
-        _cur_clust_split = clus_rec.SplitClusters(_trj_objs_list)
+        _cur_clust_split = clus_rec.SplitClusters(_trj_objs_list, spatial_scale=_man_trajs_infos[_test_idx]['scale'])
         _clustering_lists.append(_cur_clust_split.last_clustering())
         
         # predict the formtype of clusters

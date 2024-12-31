@@ -1,80 +1,83 @@
-0.948::flying_speed(euav0, medium).
-0.581::slow_down(euav0).
-0.843::change_direction(euav0, large).
+0.840::flying_speed(euav0, fast).
+0.700::steady_speed(euav0).
+0.8::change_direction(euav0, small).
 0.8::direct_fluctuate(euav0, low).
+0.9::probed_facility(euav0, hq_2, 22.000).
+0.9::probed_facility(euav0, ua_2, 24.000).
 
-0.9::targeting_facility(euav0, none, 19.000).
 0.8::distance_to_facility(euav0, radar_1, closing).
-0.8::distance_to_facility(euav0, hq_1, closing).
+0.8::distance_to_facility(euav0, hq_1, staying).
 0.8::distance_to_facility(euav0, hq_2, closing).
 0.8::distance_to_facility(euav0, ua_1, closing).
 0.8::distance_to_facility(euav0, ua_2, closing).
-0.793::flying_speed(euav1, fast).
+0.829::flying_speed(euav1, fast).
 0.700::steady_speed(euav1).
-0.737::change_direction(euav1, large).
+0.912::change_direction(euav1, large).
 0.8::direct_fluctuate(euav1, low).
-0.9::probed_facility(euav1, hq_2, 8.000).
-0.415::targeting_facility(euav1, hq_2, 16.000).
+
+0.9::targeting_facility(euav1, none, 29.000).
 0.8::distance_to_facility(euav1, radar_1, closing).
-0.8::distance_to_facility(euav1, hq_1, closing).
+0.8::distance_to_facility(euav1, hq_1, staying).
 0.8::distance_to_facility(euav1, hq_2, closing).
-0.8::distance_to_facility(euav1, ua_1, closing).
+0.8::distance_to_facility(euav1, ua_1, staying).
 0.8::distance_to_facility(euav1, ua_2, closing).
-0.904::flying_speed(euav2, medium).
+0.826::flying_speed(euav2, fast).
 0.700::steady_speed(euav2).
 0.8::change_direction(euav2, small).
 0.8::direct_fluctuate(euav2, low).
-0.9::probed_facility(euav2, ua_2, 13.000).
-0.9::targeting_facility(euav2, none, 19.000).
-0.8::distance_to_facility(euav2, radar_1, closing).
-0.8::distance_to_facility(euav2, hq_1, closing).
-0.8::distance_to_facility(euav2, hq_2, closing).
-0.8::distance_to_facility(euav2, ua_1, closing).
-0.8::distance_to_facility(euav2, ua_2, closing).
-0.864::flying_speed(euav3, fast).
-0.845::speed_up(euav3). 
-0.8::change_direction(euav3, small).
-0.8::direct_fluctuate(euav3, low).
+0.9::probed_facility(euav2, hq_2, 19.000).
 
-0.602::targeting_facility(euav3, hq_2, 2.000).
+0.8::distance_to_facility(euav2, radar_1, staying).
+0.8::distance_to_facility(euav2, hq_1, staying).
+0.8::distance_to_facility(euav2, hq_2, staying).
+0.8::distance_to_facility(euav2, ua_1, staying).
+0.8::distance_to_facility(euav2, ua_2, staying).
+0.886::flying_speed(euav3, fast).
+0.864::speed_up(euav3).
+0.893::change_direction(euav3, large).
+0.8::direct_fluctuate(euav3, low).
+0.9::probed_facility(euav3, hq_1, 15.000).
+0.9::probed_facility(euav3, ua_1, 14.000).
+
 0.8::distance_to_facility(euav3, radar_1, closing).
-0.8::distance_to_facility(euav3, hq_1, closing).
-0.8::distance_to_facility(euav3, hq_2, closing).
-0.8::distance_to_facility(euav3, ua_1, closing).
-0.8::distance_to_facility(euav3, ua_2, closing).
-0.843::flying_speed(euav4, fast).
+0.8::distance_to_facility(euav3, hq_1, staying).
+0.8::distance_to_facility(euav3, hq_2, staying).
+0.8::distance_to_facility(euav3, ua_1, staying).
+0.8::distance_to_facility(euav3, ua_2, staying).
+0.848::flying_speed(euav4, fast).
 0.700::steady_speed(euav4).
 0.8::change_direction(euav4, small).
 0.8::direct_fluctuate(euav4, low).
-
-0.630::targeting_facility(euav4, hq_1, 2.000).
-0.761::targeting_facility(euav4, hq_2, 2.000).
-0.576::targeting_facility(euav4, radar_1, 2.000).
+0.9::probed_facility(euav4, radar_1, 26.000).
+0.534::targeting_facility(euav4, hq_1, 12.000).
+0.701::targeting_facility(euav4, hq_2, 12.000).
+0.412::targeting_facility(euav4, radar_1, 13.000).
 0.8::distance_to_facility(euav4, radar_1, closing).
 0.8::distance_to_facility(euav4, hq_1, closing).
 0.8::distance_to_facility(euav4, hq_2, closing).
 0.8::distance_to_facility(euav4, ua_1, closing).
 0.8::distance_to_facility(euav4, ua_2, closing).
-0.9::attack_same_facility([euav1, euav3, euav4], [77.58871971847125, 67.00647812557665, 74.41459909355643], sequential).
-1.0::defence_facility(ua_1). 1.0::defence_facility(ua_2). 1.0::defence_facility(ua_3). 
+0.9::attack_same_facility([], [], none, none).
+
+1.0::defence_facility(ua_1). 1.0::defence_facility(ua_2). 1.0::defence_facility(ua_3).
 1.0::defence_facility(radar_1). 1.0::defence_facility(radar_2). 1.0::defence_facility(radar_3).
 
-1.0::important_facility(ua_1). 1.0::important_facility(ua_2). 1.0::important_facility(ua_3). 
+1.0::important_facility(ua_1). 1.0::important_facility(ua_2). 1.0::important_facility(ua_3).
 1.0::important_facility(hq_1). 1.0::important_facility(hq_2). 1.0::important_facility(hq_3).
 1.0::important_facility(radar_1). 1.0::important_facility(radar_2). 1.0::important_facility(radar_3).
 
-1.0:: non_defensive_facility(hq_1). 1.0:: non_defensive_facility(hqhq_22). 1.0:: non_defensive_facility(hq_3).
+1.0::non_defensive_facility(hq_1). 1.0::non_defensive_facility(hqhq_22). 1.0::non_defensive_facility(hq_3).
 
 % [Rules] recognizing penetration intention
 single_penetration(EUav) :-
-    targeting_facility(EUav, I_Facility, _), important_facility(I_Facility),
+    targeting_facility(EUav, Facility, _),
     distance_to_facility(EUav, D_Facility, closing), defence_facility(D_Facility),
     flying_speed(EUav, high).
 
 % [Rules] recognizing reconnaisance intention
 single_reconnaisance(EUav) :-
-    direct_fluctuate(EUav, high), 
-    (distance_to_facility(EUav, Facility, staying); distance_to_facility(EUav, Facility, away_from)), 
+    (direct_fluctuate(EUav, high); change_direction(EUav, large)),
+    (distance_to_facility(EUav, Facility, staying); distance_to_facility(EUav, Facility, away_from)),
     important_facility(Facility).
 
 % [Rules] recognizing detouring intention
@@ -90,28 +93,28 @@ single_fast_passing(EUav) :-
 
 % [Rules] recognizing search & strike
 search_in_searchstrike(EUav) :-
-    single_reconnaisance(EUav), 
+    single_reconnaisance(EUav),
     probed_facility(EUav, Facility, Tsearch), targeting_facility(EUavB, Facility, Ttarget),
     Tsearch < Ttarget.
 
 strike_in_searchstrike(EUav) :-
     targeting_facility(EUav, Facility, Ttarget),
-    single_reconnaisance(EUavA), probed_facility(EUavA, Facility, Tsearch), 
+    single_reconnaisance(EUavA), probed_facility(EUavA, Facility, Tsearch),
     Tsearch < Ttarget.
-    
+
 % [Rules] recognizing sequential / salvo attacks
 1.0::is_member_of(X, [X|_]).
 is_member_of(X, [_|L]) :- is_member_of(X, L).
 
-% find_all_times(EUav, [Tl|T]) :- 
+% find_all_times(EUav, [Tl|T]) :-
 
-sequential_attack(EUav) :-
-    attack_same_facility(EUavs, Times, sequential), is_member_of(EUav, EUavs),
+sequential_attack(EUav, Facility) :-
+    attack_same_facility(EUavs, Times, Facility, sequential), is_member_of(EUav, EUavs),
     change_direction(Euav, small).
 
 % [Rules] recognizing salvo attacks
-salvo_attack(EUav) :-
-    attack_same_facility(EUavs, Times, same_time), is_member_of(EUav, EUavs),
+salvo_attack(EUav, Facility) :-
+    attack_same_facility(EUavs, Times, Facility, same_time), is_member_of(EUav, EUavs),
     change_direction(EUav, small).
 
 % % test: hypothesized knowledges
@@ -136,5 +139,5 @@ query(single_penetration(EUav)).
 query(single_reconnaisance(EUav)).
 query(single_detouring(EUav)).
 query(single_fast_passing(EUav)).
-query(sequential_attack(EUav)).
-query(salvo_attack(EUav)).
+query(sequential_attack(EUav, Fac)).
+query(salvo_attack(EUav,Fac)).

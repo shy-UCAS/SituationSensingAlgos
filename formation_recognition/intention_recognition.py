@@ -559,20 +559,15 @@ class IntentFactorExtractor(object):
         self.objs_behavs = [SingleUavBehavior(_trk, analyze_win=self.win_size) for _trk in self.tracks]
         self.mult_behavs = MultiUavsBehavior(self.tracks, analyze_win=self.win_size)
         
-        self.intent_infer_rules = self._load_intent_infer_rules(self.config_parms.INTENTION_RECOG_RULES_FILE)
-        
-        self._single_uav_factors()
+        self.intent_knows = []
+        self.intent_knows.extend(self._single_uav_factors())
     
-    def _load_intent_infer_rules(self, rules_fpath=None):
-        """ 读取文本文件中的推理规则 """
-        if rules_fpath is None:
-            rules_fpath = self.config_parms.INTENTION_RECOG_RULES_FILE
-        
-        with open(rules_fpath, 'r') as _f:
-            _rules_str = _f.read()
-        
-        return _rules_str
+    def get_knows(self):
+        return self.intent_knows
     
+    def get_uav_knows(self, uav_id):
+        pass
+
     def _single_uav_factors(self):
         """ 生成面向单个无人机行为分析的认知知识 """
         # 遍历单个无人机，获取主要的行为要素
@@ -624,15 +619,9 @@ class IntentFactorExtractor(object):
         
         _clustering, _, _form_typenames = self.mult_behavs.infer_cluster_formations()
         _clustering_knowstr = self._pack_cluster_formations(_clustering, _form_typenames)
-        
-        _problog_program = PrologString("\n".join(_uavs_sgl_facts) + "\n" + self.intent_infer_rules)
-        _result = get_evaluatable().create_from(_problog_program).evaluate()
-        
-        for query, probability in _result.items():
-            if probability > 0.0:
-                print(query, probability)
-        
-        import pdb; pdb.set_trace()
+        _uavs_sgl_facts.append(_clustering_knowstr)
+
+        return _uavs_sgl_facts
     
     def _pack_flying_speed(self, uav_id, speed_level, level_score):
         _fmt_str = "%.3f::flying_speed(%s, %s)." % (level_score, uav_id, speed_level)
@@ -677,7 +666,7 @@ class IntentFactorExtractor(object):
         
         return "\n".join(_comb_fmt_strs)
     
-    def _pack_directing_to_facilities(self, uav_id, directed_ts, directed_facs, directed_scores, last_n_direct=2):
+    def _pack_directing_to_facilities(self, uav_id, directed_ts, directed_facs, directed_scores, last_n_direct=5):
         if np.sum([_fac is not None for _fac in directed_facs]) <= 0:
             return ""
 
@@ -693,7 +682,6 @@ class IntentFactorExtractor(object):
         for _fac in _last_n_direct_facs:
             for _iter in range(len(directed_ts)):
                 if _fac in directed_facs[_iter]:
-                    # import pdb; pdb.set_trace()
                     _fmt_str = "%.3f::targeting_facility(%s, %s, %.3f)."  \
                         % (directed_scores[_iter][directed_facs[_iter].index(_fac)], uav_id, _fac, directed_ts[_iter])
                     _directed_knows_list.append(_fmt_str)
@@ -718,20 +706,21 @@ class IntentFactorExtractor(object):
                 _arrival_times = _arrive_state['arrive_times']
                 _arrival_timediffs = np.abs(np.array(_arrival_times).reshape(-1, 1) - np.array(_arrival_times).reshape(1, -1))
                 
-                # import pdb; pdb.set_trace()
                 if np.max(_arrival_timediffs) <= same_arrival_eps:
-                    _fmt_str = "0.9::attack_same_facility([%s], [%s], same_time)." % (', '.join(_arrive_state['uav_ids']), 
-                                                                                      ', '.join([str(_t) for _t in _arrive_state['arrive_times']]))
+                    _fmt_str = "0.9::attack_same_facility([%s], [%s], %s, same_time)." % (', '.join(_arrive_state['uav_ids']), 
+                                                                                      ', '.join([str(_t) for _t in _arrive_state['arrive_times']]),
+                                                                                      _fac)
                 else:
-                    _fmt_str = "0.9::attack_same_facility([%s], [%s], sequential)." % (', '.join(_arrive_state['uav_ids']), 
-                                                                                       ', '.join([str(_t) for _t in _arrive_state['arrive_times']]))
+                    _fmt_str = "0.9::attack_same_facility([%s], [%s], %s, sequential)." % (', '.join(_arrive_state['uav_ids']), 
+                                                                                       ', '.join([str(_t) for _t in _arrive_state['arrive_times']]),
+                                                                                       _fac)
 
                 _fmt_strs_list.append(_fmt_str)
 
         if len(_fmt_strs_list) > 0:
             return "\n".join(_fmt_strs_list)
         else:
-            return "0.9::attack_same_facility([], [], none)."
+            return "0.9::attack_same_facility([], [], none, none)."
 
     def _pack_cluster_formations(self, clustering_labels, formation_typenames):
         _uniq_cluster_labels, _clusters_counts = np.unique(clustering_labels, return_counts=True)
@@ -742,16 +731,64 @@ class IntentFactorExtractor(object):
             if _clusters_counts[0] >= 2:
                 _in_cluster_eidxs = np.where(clustering_labels == _uniq_cluster_labels[0])[0]
                 _fmt_strs = ["0.9::tight_fleet(%s)." % (self.tracks[_idx]) for _idx in _in_cluster_eidxs]
+
+                if _clusters_counts[0] == 2:
+                    _form_type = 'pair'
+                else:
+                    _form_type = formation_typenames
+                _fmt_strs.append("0.9::in_group([%s], %s)." % (", ".join([self.tracks[_idx].id for _idx in _in_cluster_eidxs]), _form_type))
+
                 _fmt_strs_list.extend(_fmt_strs)
         else:
             for _c_label, _c_count in zip(_uniq_cluster_labels, _clusters_counts):
                 if _c_count >= 2:
                     _in_cluster_eidxs = np.where(clustering_labels == _c_label)[0]
                     _fmt_strs = ["0.9::tight_fleet(%s)." % (self.tracks[_idx]) for _idx in _in_cluster_eidxs]
+
+                    if _c_count == 2:
+                        _form_type = 'pair'
+                    else:
+                        _form_type = formation_typenames[_c_label]
+                    _fmt_strs.append("0.9::in_group([%s], %s)." % (", ".join([self.tracks[_idx].id for _idx in _in_cluster_eidxs]), _form_type))
+
                     _fmt_strs_list.extend(_fmt_strs)
         
-        # import pdb; pdb.set_trace()
         if len(_fmt_strs_list) > 0:
             return "\n".join(_fmt_strs_list)
         else:
             return ""
+
+class IntentionEvaluator:
+    def __init__(self, situation_knows):
+        self.config_parms = basic_units.GlobalConfigs()
+        self.intent_infer_rules = self._load_intent_infer_rules(self.config_parms.INTENTION_RECOG_RULES_FILE)
+
+        self.situation_knowledges = situation_knows
+        self.infered_knows = self._infer_knows()
+
+    def _load_intent_infer_rules(self, rules_fpath=None):
+        """ 读取文本文件中的推理规则 """
+        if rules_fpath is None:
+            rules_fpath = self.config_parms.INTENTION_RECOG_RULES_FILE
+        
+        with open(rules_fpath, 'r') as _f:
+            _rules_str = _f.read()
+        
+        return _rules_str
+    
+    def _infer_knows(self):
+        _tic = time.time()
+
+        _prolog_knowstr_combined = "\n".join(self.situation_knowledges) + "\n" + self.intent_infer_rules
+        _problog_program = PrologString(_prolog_knowstr_combined)
+        _result = get_evaluatable(name='sddx').create_from(_problog_program).evaluate()
+
+        print("Rules based Intention inference time: %.3fsecs" % (time.time() - _tic))
+
+        for query, probability in _result.items():
+            if probability > 0.0:
+                print(query, probability)
+        # import pdb; pdb.set_trace()
+
+    def get_knows(self):
+        return self.infered_knows

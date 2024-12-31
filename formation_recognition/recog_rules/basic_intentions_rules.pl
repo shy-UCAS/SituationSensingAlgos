@@ -5,18 +5,17 @@
 1.0::important_facility(hq_1). 1.0::important_facility(hq_2). 1.0::important_facility(hq_3).
 1.0::important_facility(radar_1). 1.0::important_facility(radar_2). 1.0::important_facility(radar_3).
 
-1.0:: non_defensive_facility(hq_1). 1.0:: non_defensive_facility(hqhq_22). 1.0:: non_defensive_facility(hq_3).
+1.0::non_defensive_facility(hq_1). 1.0::non_defensive_facility(hqhq_22). 1.0::non_defensive_facility(hq_3).
 
 % [Rules] recognizing penetration intention
 single_penetration(EUav) :-
-    targeting_facility(EUav, I_Facility, _), important_facility(I_Facility),
+    targeting_facility(EUav, Facility, _), 
     distance_to_facility(EUav, D_Facility, closing), defence_facility(D_Facility),
-    flying_speed(EUav, high),
-    tight_fleet(EUav).
+    flying_speed(EUav, high).
 
 % [Rules] recognizing reconnaisance intention
 single_reconnaisance(EUav) :-
-    direct_fluctuate(EUav, high), 
+    (direct_fluctuate(EUav, high); change_direction(EUav, large)),
     (distance_to_facility(EUav, Facility, staying); distance_to_facility(EUav, Facility, away_from)), 
     important_facility(Facility).
 
@@ -48,13 +47,13 @@ is_member_of(X, [_|L]) :- is_member_of(X, L).
 
 % find_all_times(EUav, [Tl|T]) :- 
 
-sequential_attack(EUav) :-
-    attack_same_facility(EUavs, Times, sequential), is_member_of(EUav, EUavs),
+sequential_attack(EUav, Facility) :-
+    attack_same_facility(EUavs, Times, Facility, sequential), is_member_of(EUav, EUavs),
     change_direction(Euav, small).
 
 % [Rules] recognizing salvo attacks
-salvo_attack(EUav) :-
-    attack_same_facility(EUavs, Times, same_time), is_member_of(EUav, EUavs),
+salvo_attack(EUav, Facility) :-
+    attack_same_facility(EUavs, Times, Facility, same_time), is_member_of(EUav, EUavs),
     change_direction(EUav, small).
 
 % % test: hypothesized knowledges
@@ -79,5 +78,5 @@ query(single_penetration(EUav)).
 query(single_reconnaisance(EUav)).
 query(single_detouring(EUav)).
 query(single_fast_passing(EUav)).
-query(sequential_attack(EUav)).
-query(salvo_attack(EUav)).
+query(sequential_attack(EUav, Fac)).
+query(salvo_attack(EUav,Fac)).

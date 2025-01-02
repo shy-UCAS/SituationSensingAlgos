@@ -119,7 +119,7 @@ class SwarmIntentExhibitor(object):
             _obj_tracks = [basic_units.ObjTracks(self.uav_xys[_o_i, -lookback_start-lookback_len:-lookback_start, 0], 
                                                 self.uav_xys[_o_i, -lookback_start-lookback_len:-lookback_start, 1], 
                                                 id='euav%d' % (_o_i)) 
-                        for _o_i in range(_num_objs)]
+                           for _o_i in range(_num_objs)]
             
         elif lookback_start <= 0:
             _obj_tracks = [basic_units.ObjTracks(self.uav_xys[_o_i, -lookback_len:, 0], 

@@ -263,5 +263,5 @@ if __name__ == "__main__":
         intent_inferor = int_rec.IntentionEvaluator([_k for _k in factor_knows if _k != ''])
         intent_knows = intent_inferor.get_knows()
 
-        # import pdb; pdb.set_trace()
-        
+    elif test_sw == 4:
+        # 

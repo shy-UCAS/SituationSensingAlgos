@@ -17,6 +17,7 @@ from formation_recognition import basic_units
 from formation_recognition import clusters_recognition as clus_rec
 from formation_recognition import formation_recognition as form_rec
 from formation_recognition import defence_breach_analyze as brch_anz
+from formation_recognition import defence_ability_analyze as def_eval
 
 class TrajectoryExhibitor(object):
     def __init__(self, file_path, coord_scale, interp_scale=3):
@@ -185,6 +186,7 @@ if __name__ == "__main__":
     _formtype_rec = form_rec.FormationRecognizer(form_types=form_types, num_layers=3, hidden_size=64, pretrained_weights=weight_fpath)
     
     _ring_breacher = brch_anz.DefRingBreach()
+    _def_evaluator = def_eval.DefenseEvaluator()
 
     _prev_positions = None
     
@@ -192,7 +194,7 @@ if __name__ == "__main__":
         # print(f"Time: {time_step}, Positions: {positions}")
         if _trj_counter <= 0:
             _num_objs = len(positions)
-            _trj_objs_list = [basic_units.ObjTracks([_pos[0]], [_pos[1]], ts=[time_step]) for _pos in positions]
+            _trj_objs_list = [basic_units.ObjTracks([_pos[0]], [_pos[1]], ts=[time_step], id="euav%02d" % (_iter + 1)) for _iter, _pos in enumerate(positions)]
             
             _prev_positions = positions
             _trj_counter = _trj_counter + 1
@@ -213,6 +215,10 @@ if __name__ == "__main__":
 
         # analyze the defence ring breaching status
         _r1_clust_idxs, _r2_clust_idxs, _brch_frmt_str = _ring_breacher.infer_rings_breach_groups(_trj_objs_list, _cur_clust_split.last_clustering(), formated_output=True)
+
+        if len(_brch_frmt_str) > 0:
+            # import pdb; pdb.set_trace()
+            _def_results = _def_evaluator.evaluate_defense(_brch_frmt_str)
 
         _formtypes_lists.append(_clust_formtypes)
         _formtype_names_lists.append(_clust_formtype_names)

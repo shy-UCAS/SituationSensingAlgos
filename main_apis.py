@@ -7,6 +7,7 @@ import numpy as np
 from formation_recognition import basic_units
 from formation_recognition import clusters_recognition as clus_rec
 from formation_recognition import formation_recognition as form_rec
+from formation_recognition import defence_breach_analyze as def_breach
 
 WORKSPACE_DIR = osp.dirname(osp.abspath(__file__))
 FORM_WEIGHT_FPATH = osp.join(WORKSPACE_DIR, 'pretrained_weights', 'formation_recognition', 'form_recog_model_192000.pth')
@@ -79,13 +80,30 @@ def recog_fleet_formtype(uav_coords_str, clustering_str):
         formtypes_result['swarms'].append({'swarm_no': _swarm_id,
                                            'members': _uav_ids,
                                            'formation': clusters_formtypes[_iter]})
-    # import pdb; pdb.set_trace()
     return json.dumps(formtypes_result)
 
 def ring_breach_infer(uav_coords_str, clustering_str):
     """ 基于输入的无人机轨迹数据、无人机分群情况，给出各轨迹点上面无人机的突破情况 """
+    _breacher = def_breach.DefRingBreach()
 
-    return formated_output
+    uav_coords_dict = json.loads(uav_coords_str)
+    clustering_dict = json.loads(clustering_str) # {"eSwarm1": ["euav1", "euav2", "euav3"], "eSwarm2": ["euav4"], "eSwarm3": ["euav5"]}
+
+    uavs_tracks = []
+    for uav_id, uav_coords in uav_coords_dict.items():
+        _uav_track = basic_units.ObjTracksJson(uav_coords, id=uav_id)
+        uavs_tracks.append(_uav_track)
+    
+    _clustering_labels = np.zeros((len(uavs_tracks), 1), dtype=int)
+    _uavs_ids = [_trk.id for _trk in uavs_tracks]
+    for _swrm_i, _swrm_nm in enumerate(clustering_dict):
+        _cur_swarm_uav_ids = clustering_dict[_swrm_nm]
+        _cur_uav_idxs = [_uavs_ids.index(_uid) for _uid in _cur_swarm_uav_ids]
+        _clustering_labels[_cur_uav_idxs] = _swrm_i
+    
+    _r1_uidxs, _r2_uidxs, _formated_output = _breacher.infer_rings_breach_groups(uavs_tracks, _clustering_labels, formated_output=True)
+
+    return _formated_output
 
 if __name__ == '__main__':
     from test_main02_dynamic_trajectories_recog import TrajectoryExhibitor
@@ -131,3 +149,4 @@ if __name__ == '__main__':
 
         # 基于无人机轨迹、分组情况，给出各无人机的突破情况
         formated_breaches = ring_breach_infer(input_json_str, clustering_result)
+        print(formated_breaches)

@@ -265,9 +265,11 @@ class MainWindow(QMainWindow):
         self.intent_exhibitor = None
         self.trajectories = None
 
-        self.default_data_file = osp.join("..","data","manual_intention_recog", "ext_search_no01.xlsx")
+        self.default_data_file = osp.join("..", "data", "manual_intention_recog", "ext_search_no01.xlsx")
         self.load_trajectories(self.default_data_file)
         self.file_line_edit.setText(self.default_data_file)
+
+        self.default_save_file = osp.join("..", "data", "manual_intention_reocg", "ext_search_no01_labeling01.json")
     
     def load_trajectories(self, file_path):
         # Load uavs trajectories from data excel file
@@ -327,7 +329,7 @@ class MainWindow(QMainWindow):
 
         # QtCore.pyqtRemoveInputHook()
         # import pdb; pdb.set_trace()
-        file_path, _ = QFileDialog.getOpenFileName(self, "Open File", osp.dirname(self.default_data_file), "All Files (*.*)", )
+        file_path, _ = QFileDialog.getOpenFileName(self, "Open File", osp.dirname(self.default_save_file), "Json files (*.json)", )
     
     def update_status_bar(self, message:str):
         _cur_datetime = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%2f")

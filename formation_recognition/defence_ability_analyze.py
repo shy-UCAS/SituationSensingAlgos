@@ -66,7 +66,8 @@ class DefenseEvaluator(object):
             key=lambda x: (
                 1 if x['breach_circle'] == 'C1' else 
                 2 if x['breach_circle'] == 'C2' else 
-                3
+                3,
+                x['min_distance']
             )
         )
         
@@ -117,7 +118,7 @@ class DefenseEvaluator(object):
                     2 if x['breach_circle'] == 'C2' else 
                     3,
                     x['min_distance']
-                )
+                ),
             )
             
             # 逐步分配剩余的友方无人机，并检查是否满足拦截率

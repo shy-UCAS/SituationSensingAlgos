@@ -77,7 +77,6 @@ single_penetration(EUav) :-
 % [Rules] recognizing reconnaisance intention
 single_reconnaisance(EUav) :-
     (direct_fluctuate(EUav, high); change_direction(EUav, large)),
-    (distance_to_facility(EUav, Facility, staying); distance_to_facility(EUav, Facility, away_from)),
     important_facility(Facility).
 
 % [Rules] recognizing detouring intention

@@ -159,12 +159,13 @@ class SwarmIntentExhibitor(object):
             ax.grid(True, linestyle='--', linewidth=0.5)
             plt.legend()
             plt.show()
+
         return _obj_tracks
 
 if __name__ == "__main__":
     swarm_intent_dir = r"data\manual_intention_recog"
-    # swarm_intent_file = osp.join(swarm_intent_dir, "fast_pass_through_no03.xlsx")
-    swarm_intent_file = osp.join(swarm_intent_dir, "ext_search_no01.xlsx")
+    swarm_intent_file = osp.join(swarm_intent_dir, "fast_pass_through_no03.xlsx")
+    # swarm_intent_file = osp.join(swarm_intent_dir, "ext_search_no01.xlsx")
 
     # 参数说明：
     # swarm_intent_file: 人工构建的无人机轨迹文件，格式为xlsx，包含无人机轨迹数据
@@ -264,4 +265,4 @@ if __name__ == "__main__":
         intent_knows = intent_inferor.get_knows()
 
     elif test_sw == 4:
-        # 
+        pass

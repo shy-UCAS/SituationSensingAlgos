@@ -560,7 +560,7 @@ class IntentFactorExtractor(object):
         self.mult_behavs = MultiUavsBehavior(self.tracks, analyze_win=self.win_size)
         
         self.intent_knows = []
-        self.intent_knows.extend(self._single_uav_factors())
+        self.intent_knows.extend(self._uav_factors())
     
     def get_knows(self):
         return self.intent_knows
@@ -568,7 +568,7 @@ class IntentFactorExtractor(object):
     def get_uav_knows(self, uav_id):
         pass
 
-    def _single_uav_factors(self):
+    def _uav_factors(self):
         """ 生成面向单个无人机行为分析的认知知识 """
         # 遍历单个无人机，获取主要的行为要素
         _uavs_sgl_facts = []

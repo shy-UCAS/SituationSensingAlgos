@@ -217,7 +217,7 @@ if __name__ == "__main__":
         print("[Closing Facilities]:")
         for _o_i, _o_behav in enumerate(_test_objbehavs):
             # 给出analyze_win部分轨迹中，每个轨迹点距离建筑设施的距离
-            _distancing_stats, _closing_ratios = _o_behav.distance_to_facilities(test_facilities, return_val=True)
+            _distancing_stats, _dist2_facilities, _closing_ratios = _o_behav.distance_to_facilities(test_facilities, return_val=True)
             print("closing to facilities: %s, close-ratios: %s" % (_distancing_stats, _closing_ratios))
         
         print("[Probing Facilities]:")

@@ -40,6 +40,20 @@ class GlobalConfigs(object):
         # UAV集群特性分析
         self.DIST_CHANGE_RATIO_THRESHOLD = None
 
+        # 防御和威胁相关配置参数
+        self.THREAT_SCORE_THRESHOLD = 0.8
+        self.ONE_VS_ONE_ANHL_RATIO = 0.8
+        self.ENDANGER_DISTANCE = 150
+        
+        self.ATTACK_REMAIN_SECONDS = [20, 40, 100]
+        self.THREAT_SCORE_BY_ATTACK_REMAIN_SECONDS = [0.9, 0.5, 0.2]
+        
+        self.DEFEND_REMAIN_SECONDS = [25, 60, 100]
+        self.THREAT_SCORE_BY_DEFEND_REMAIN_SECONDS = [0.9, 0.5, 0.2]
+        
+        self.THREAT_LEVEL_BY_QUANTITIES = [1, 3, 5]
+        self.THREAT_SCORE_BY_QUANTITIES = [0.2, 0.5, 0.9]
+        
         self._load_basic_cfgs()
     
     def _load_basic_cfgs(self, cfg_file=None):
@@ -71,6 +85,16 @@ class GlobalConfigs(object):
             self.ARRIVE_AT_EPS = float(_config['SINGLE_UAV_BEHAVIOR']['ARRIVE_AT_EPS'])
             
             self.DIST_CHANGE_RATIO_THRESHOLD = float(_config['MULTI_UAVS_BEHAVIOR']['DIST_CHANGE_RATIO_THRESHOLD'])
+            
+            self.ONE_VS_ONE_ANHL_RATIO = float(_config['DEFENCE_AND_THREAT']['ONE_VS_ONE_ANHL_RATIO'])
+            self.THREAT_SCORE_THRESHOLD = float(_config['DEFENCE_AND_THREAT']['THREAT_SCORE_THRESHOLD'])
+            self.ENDANGER_DISTANCE = float(_config['DEFENCE_AND_THREAT']['ENDANGER_DISTANCE'])
+            self.ATTACK_REMAIN_SECONDS = [float(_str) for _str in _config['DEFENCE_AND_THREAT']['ATTACK_REMAIN_SECONDS'].split(',')]
+            self.THREAT_SCORE_BY_ATTACK_REMAIN_SECONDS = [float(_str) for _str in _config['DEFENCE_AND_THREAT']['THREAT_SCORE_BY_ATTACK_REMAIN_SECONDS'].split(',')]
+            self.DEFEND_REMAIN_SECONDS = [float(_str) for _str in _config['DEFENCE_AND_THREAT']['DEFEND_REMAIN_SECONDS'].split(',')]
+            self.THREAT_SCORE_BY_DEFEND_REMAIN_SECONDS = [float(_str) for _str in _config['DEFENCE_AND_THREAT']['THREAT_SCORE_BY_DEFEND_REMAIN_SECONDS'].split(',')]
+            self.THREAT_LEVEL_BY_QUANTITIES = [int(_str) for _str in _config['DEFENCE_AND_THREAT']['THREAT_LEVEL_BY_QUANTITIES'].split(',')]
+            self.THREAT_SCORE_BY_QUANTITIES = [float(_str) for _str in _config['DEFENCE_AND_THREAT']['THREAT_SCORE_BY_QUANTITIES'].split(',')]
         
         except (configparser.NoSectionError, configparser.NoOptionError) as e:
             print(f"Error reading configuration file: {e}")
@@ -310,8 +334,8 @@ class ObjTracks(object):
         if len(self.xs) < lookback:
             return None
 
-        dx = np.mean(self.xs[-lookback:] - self.xs[-1-lookback:-1])
-        dy = np.mean(self.ys[-lookback:] - self.ys[-1-lookback:-1])
+        dx = np.mean(np.divide(self.xs[-lookback:] - self.xs[-1-lookback:-1], self.ts[-lookback:] - self.ts[-1-lookback:-1]))
+        dy = np.mean(np.divide(self.ys[-lookback:] - self.ys[-1-lookback:-1], self.ts[-lookback:] - self.ts[-1-lookback:-1]))
 
         return np.sqrt(dx**2 + dy**2)
     
@@ -319,8 +343,8 @@ class ObjTracks(object):
         if len(self.xs) < lookback:
             return None
 
-        dx = self.xs[-lookback:] - self.xs[-1-lookback:-1]
-        dy = self.ys[-lookback:] - self.ys[-1-lookback:-1]
+        dx = np.divide(self.xs[-lookback:] - self.xs[-1-lookback:-1], self.ts[-lookback:] - self.ts[-1-lookback:-1])
+        dy = np.divide(self.ys[-lookback:] - self.ys[-1-lookback:-1], self.ts[-lookback:] - self.ts[-1-lookback:-1])
 
         return np.sqrt(dx**2 + dy**2)
 

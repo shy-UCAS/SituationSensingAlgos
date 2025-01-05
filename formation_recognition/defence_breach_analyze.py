@@ -124,8 +124,12 @@ class DefenceTimeEstimate(object):
         _coeff_c = _euav_xs_shifted[-1]**2 + _euav_ys_shifted[-1]**2
         
         # 然后判断当前方程是否有解
-        _solution1_cond = -_coeff_b + np.sqrt(_coeff_b**2 - 4 * _coeff_a * _coeff_c) / (2 * _coeff_a)
-        _solution2_cond = -_coeff_b - np.sqrt(_coeff_b**2 - 4 * _coeff_a * _coeff_c) / (2 * _coeff_a)
+        if (_coeff_b**2 - 4 * _coeff_a * _coeff_c) >= 0:
+            _solution1_cond = (-_coeff_b + np.sqrt(_coeff_b**2 - 4 * _coeff_a * _coeff_c)) / (2 * _coeff_a)
+            _solution2_cond = (-_coeff_b - np.sqrt(_coeff_b**2 - 4 * _coeff_a * _coeff_c)) / (2 * _coeff_a)
+        else:
+            _solution1_cond = -1
+            _solution2_cond = -1
         
         _num_solutions = 0
         _chase_times = []
@@ -196,14 +200,15 @@ class DefenceTimeEstimate(object):
                     ax.plot([_trj_xs[-1], _cur_intrcpt_loc[0]], [_trj_ys[-1], _cur_intrcpt_loc[1]], '--', c='green')
                     
                     _cur_intrcpt_rad = math.radians(_cur_intrcpt_info['degree'])
-                    _cur_intrcpt_x = _cur_intrcpt_loc[0] + self.uav_speed * math.cos(_cur_intrcpt_rad)
-                    _cur_intrcpt_y = _cur_intrcpt_loc[1] + self.uav_speed * math.sin(_cur_intrcpt_rad)
+                    _cur_intrcpt_x = self.airport_location[0] + self.uav_speed * math.cos(_cur_intrcpt_rad) * _cur_intrcpt_info['time']
+                    _cur_intrcpt_y = self.airport_location[1] + self.uav_speed * math.sin(_cur_intrcpt_rad) * _cur_intrcpt_info['time']
                     ax.arrow(self.airport_location[0], self.airport_location[1], 
                              _cur_intrcpt_x - self.airport_location[0], _cur_intrcpt_y - self.airport_location[1], 
-                             head_width=0.8, head_length=1.0, fc='green', ec='green')
+                             head_width=0.5, head_length=0.5, fc='green', ec='green')
                     
             # ax.set_xlim(-40, 40)  # 设置x轴范围
             # ax.set_ylim(-40, 40)  # 设置y轴范围
+            ax.axis('equal')
             ax.grid(True)
             plt.show()
             

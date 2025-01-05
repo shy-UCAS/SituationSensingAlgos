@@ -36,6 +36,7 @@ class DefenseEvaluator(object):
         cfg.read(config_file)
 
         try:
+            # import pdb; pdb.set_trace()
             self.total_allocated_friendly_uavs = cfg.getint('DEFAULT', 'TOTAL_ALLOCATED_FRIENDLY_UAVS')
             logging.info(f"从配置文件读取到的总友方无人机数量: {self.total_allocated_friendly_uavs}")
         except (configparser.NoSectionError, configparser.NoOptionError, ValueError) as e:
@@ -66,9 +67,7 @@ class DefenseEvaluator(object):
             key=lambda x: (
                 1 if x['breach_circle'] == 'C1' else 
                 2 if x['breach_circle'] == 'C2' else 
-                3,
-                x['min_distance']
-            )
+                3)
         )
         
         # 初步分配以满足拦截率要求

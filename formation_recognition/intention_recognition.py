@@ -15,6 +15,7 @@ from problog import get_evaluatable
 from formation_recognition import basic_units
 from formation_recognition import clusters_recognition as clus_rec
 from formation_recognition import formation_recognition as form_rec
+from formation_recognition import defence_breach_analyze as def_brch
 
 class SingleUavBehavior(object):
     def __init__(self, obj_track:basic_units.ObjTracks, analyze_win=8):
@@ -363,9 +364,9 @@ class SingleUavBehavior(object):
                 _dist_change = _distances_changes[_iter]
 
         if return_val:
-            return _distance_to_facilities_labels, np.divide(_first_half_maxdists - _second_half_mindists, _first_half_maxdists)
+            return _distance_to_facilities_labels, _uav_trj_dists[-1, :], np.divide(_first_half_maxdists - _second_half_mindists, _first_half_maxdists)
         else:
-            return _distance_to_facilities_labels
+            return _distance_to_facilities_labels, _uav_trj_dists[-1, :]
     
     def probed_facilities(self, facilities:basic_units.BasicFacilities, return_val=False):
         """ 给出当前无人机探测到我方设施的时间（最早时间） """
@@ -441,12 +442,15 @@ class MultiUavsBehavior(object):
         _track_dists = []
         _mean_dists = []
         
-        for _iter in range(_comb_tracks_xys.shape[1]):
-            _cur_objs_xys = _comb_tracks_xys[:, _iter, :]
-            _cur_objs_dists = np.linalg.norm(_cur_objs_xys[:, np.newaxis, :] - _cur_objs_xys[np.newaxis, :, :], axis=-1)
-        
-            _track_dists.append(_cur_objs_dists[np.triu(np.ones_like(_cur_objs_dists, dtype=bool), k=1)])
-            _mean_dists.append(np.mean(_track_dists[-1]))
+        try:
+            for _iter in range(_comb_tracks_xys.shape[1]):
+                _cur_objs_xys = _comb_tracks_xys[:, _iter, :]
+                _cur_objs_dists = np.linalg.norm(_cur_objs_xys[:, np.newaxis, :] - _cur_objs_xys[np.newaxis, :, :], axis=-1)
+            
+                _track_dists.append(_cur_objs_dists[np.triu(np.ones_like(_cur_objs_dists, dtype=bool), k=1)])
+                _mean_dists.append(np.mean(_track_dists[-1]))
+        except:
+            import pdb; pdb.set_trace()
 
         return _track_dists, _mean_dists
     
@@ -527,11 +531,26 @@ class MultiUavsBehavior(object):
         
         return _tgt2fac_uavs
     
+    def split_up_swarm(self):
+        """ 对当前的无人机集群进行编组划分 """
+        _tic = time.time()
+        
+        _multi_uavs_cluster = clus_rec.SplitClusters(self.tracks, spatial_scale=15)
+        
+        _cluster_labels = _multi_uavs_cluster.last_clustering()
+        _uniq_cluster_labels = np.unique(_cluster_labels)
+        
+        _cluster_elm_idxs = [np.where(_cluster_labels == _lbl)[0] for _lbl in _uniq_cluster_labels]
+
+        print("splitting up swarm in %.3fsecs" % (time.time() - _tic))
+        return _multi_uavs_cluster.last_clustering(), _cluster_elm_idxs
+    
     def infer_cluster_formations(self):
         """ 分析当前无人机集群中的群组关联性，队形模式等信息 """
         _tic = time.time()
 
-        _multi_uavs_cluster = clus_rec.SplitClusters(self.tracks, spatial_scale=15)
+        # _multi_uavs_cluster = clus_rec.SplitClusters(self.tracks, spatial_scale=15)
+        _uavs_clustering, _ = self.split_up_swarm()
         _cur_locs = np.array([[self.tracks[_iter].xs[-1], self.tracks[_iter].ys[-1]] for _iter in range(len(self.tracks))])
 
         _form_recognizer = form_rec.FormationRecognizer(form_types=self.config_parms.FORMATION_RECOG_TYPES, 
@@ -541,9 +560,9 @@ class MultiUavsBehavior(object):
         
         print("formation-recog model loaded in %.3fsecs" % (time.time() - _tic))
 
-        _form_types, _form_typenames = _form_recognizer.infer_swarm_formations(self.tracks, _multi_uavs_cluster.last_clustering())
+        _form_types, _form_typenames = _form_recognizer.infer_swarm_formations(self.tracks, _uavs_clustering)
 
-        return _multi_uavs_cluster.last_clustering(), _form_types, _form_typenames
+        return _uavs_clustering, _form_types, _form_typenames
 
 class IntentFactorExtractor(object):
     """ 基于规则的意图识别总函数：
@@ -607,7 +626,7 @@ class IntentFactorExtractor(object):
             _directed_facilities_knowstr = self._pack_directing_to_facilities(_sgl_behav.track.id, _directed_ts, _directed_facilities, _directed_scores)
             _uavs_sgl_facts.append(_directed_facilities_knowstr)
             
-            _closing_labels, _closing_ratios = _sgl_behav.distance_to_facilities(self.facilities, return_val=True)
+            _closing_labels, _dist2facilities, _closing_ratios = _sgl_behav.distance_to_facilities(self.facilities, return_val=True)
             _closing_facilities_names = [_facilities_names[_iter] for _iter in range(len(self.facilities)) if _closing_labels[_iter]]
             _closing_to_facilites_knowstr = self._pack_closing_to_facilities(_sgl_behav.track.id, _closing_facilities_names, _closing_labels)
             _uavs_sgl_facts.append(_closing_to_facilites_knowstr)
@@ -792,3 +811,174 @@ class IntentionEvaluator:
 
     def get_knows(self):
         return self.infered_knows
+
+class ThreatEvaluator(MultiUavsBehavior):
+    """ 通过敌方无人机的行为、状态，评估无人机的威胁程度 """
+    def __init__(self, objs_tracks:list[basic_units.ObjTracks], facilities:basic_units.BasicFacilities, analyze_win=8):
+        super().__init__(objs_tracks, analyze_win)
+        self.config_parms = basic_units.GlobalConfigs()
+        self.facilities = facilities
+        
+        # 获取敌方集群的基本分组情况，然分别进行基于行为的威胁评估
+        self.uavs_tracks = objs_tracks
+        self.uavs_behavs = [SingleUavBehavior(_uav, analyze_win=analyze_win) for _uav in self.uavs_tracks]
+        self.uavs_clustering, self.clusters_uav_idxs = self.split_up_swarm()
+    
+    def _infer_arrive_at_times(self, objs_behavs:list[SingleUavBehavior]):
+        """ 根据无人机到达各设施的时间评估威胁等级 """
+        _arrive2facilities_times = []
+        _facilities_names = [_key for _key in self.facilities.total_facilities.keys()]
+        
+        for _uav_behav in objs_behavs:
+            _arrive_bools, _arrive_times = _uav_behav.estimate_arrive_time(self.facilities)
+            if np.sum(_arrive_bools) > 0:
+                _orig_arrive_times = np.array(_arrive_times)
+                _orig_arrive_times[np.logical_not(_arrive_bools)] = np.inf
+                
+                _cur_arrive_idx = np.argmin(_orig_arrive_times)
+                _cur_arrive_facility = _facilities_names[_cur_arrive_idx]
+                _cur_arrive_time = _arrive_times[_cur_arrive_idx]
+
+                _arrive2facilities_times.append({'facility':_cur_arrive_facility, 'time':_cur_arrive_time})
+
+            else:
+                _arrive2facilities_times.append(None)
+
+        _valid_arrive_times = [_time['time'] for _time in _arrive2facilities_times if _time is not None]
+        if len(_valid_arrive_times) <= 0:
+            return 0.0
+        elif len(_valid_arrive_times) == 1:
+            _min_arrive_time = _valid_arrive_times[0]
+        else:
+            _min_arrive_time = np.min([_time['time'] for _time in _arrive2facilities_times if _time is not None])
+        
+        _min_seconds = 0; _min_secs_score = 1.0
+        _max_seconds = 30 * 60; _max_secs_score = 0.0
+        
+        _levels_minmax_secs = np.stack([[_min_seconds] + self.config_parms.ATTACK_REMAIN_SECONDS, self.config_parms.ATTACK_REMAIN_SECONDS + [_max_seconds]], 1)   
+        _levels_minmax_scores = np.stack([[_min_secs_score] + self.config_parms.THREAT_SCORE_BY_ATTACK_REMAIN_SECONDS, self.config_parms.THREAT_SCORE_BY_ATTACK_REMAIN_SECONDS + [_max_secs_score]], 1)
+        
+        _level_idx = np.sum(_min_arrive_time >= np.array(self.config_parms.ATTACK_REMAIN_SECONDS))
+        _score= (_min_arrive_time - _levels_minmax_secs[_level_idx, 0]) / (_levels_minmax_secs[_level_idx, 1] - _levels_minmax_secs[_level_idx, 0]) \
+            * (_levels_minmax_scores[_level_idx, 1] - _levels_minmax_scores[_level_idx, 0]) + _levels_minmax_scores[_level_idx, 0]
+        
+        return _score
+    
+    def _infer_dist_to_facilities(self, objs_behavs:list[SingleUavBehavior]):
+        """ 基于无人机与设施的距离和距离变化快慢评估威胁等级 """
+        _facilities_names = [_key for _key in self.facilities.total_facilities.keys()]
+        _closing_facilities = []
+        
+        for _uav_behav in objs_behavs:
+            _dist_labels, _dist2facilities, _dist_chg_ratios = _uav_behav.distance_to_facilities(self.facilities, True)
+            
+            _cur_closing_facility = None
+            _cur_to_facility_dist = None
+            _cur_closing_ratio = None
+            
+            for _iter, (_dist_lbl, _dist2fac, _chg_ratio) in enumerate(zip(_dist_labels, _dist2facilities, _dist_chg_ratios)):
+                if _dist_lbl == 'closing':
+                    _cur_facility = _facilities_names[_iter]
+                    if _iter == 0:
+                        _cur_closing_facility = _cur_facility
+                        _cur_to_facility_dist = _dist2fac
+                        _cur_closing_ratio = _chg_ratio
+                    else:
+                        if _cur_to_facility_dist < _dist2fac:
+                            _cur_closing_facility = _dist_lbl
+                            _cur_to_facility_dist = _dist2fac
+                            _cur_closing_ratio = _chg_ratio
+
+            if _cur_closing_facility is not None:
+                _closing_facilities.append({'facility': _cur_closing_facility, 'distance': _cur_to_facility_dist, 'close_ratio': _cur_closing_ratio})
+            else:
+                _closing_facilities.append(None)
+
+        return _closing_facilities
+    
+    def _infer_cluster_quantity(self, objs_behavs:list[SingleUavBehavior]):
+        """ 根据无人机集群的规模评估威胁等级 """
+        _num_euavs = len(objs_behavs)
+        _threat_quantities = np.array(self.config_parms.THREAT_LEVEL_BY_QUANTITIES)
+        _level_idx = np.sum(_num_euavs >= _threat_quantities)
+        
+        _min_quant = 0; _min_score = 0.0
+        _max_quant = 100; _max_score = 1.0
+        _levels_min_maxs = np.stack([[_min_quant] + self.config_parms.THREAT_LEVEL_BY_QUANTITIES, self.config_parms.THREAT_LEVEL_BY_QUANTITIES + [_max_quant]], 1)
+        _levels_min_max_scores = np.stack([[_min_score] + self.config_parms.THREAT_SCORE_BY_QUANTITIES, self.config_parms.THREAT_SCORE_BY_QUANTITIES + [_max_score]], 1)
+        
+        _score = (_num_euavs - _levels_min_maxs[_level_idx, 0]) / (_levels_min_maxs[_level_idx, 1] - _levels_min_maxs[_level_idx, 0]) \
+            * (_levels_min_max_scores[_level_idx, 1] - _levels_min_max_scores[_level_idx, 0]) + _levels_min_max_scores[_level_idx, 0]
+
+        return _score
+            
+    def _calculate_intercept_time(self, objs_tracks:list[basic_units.ObjTracks]):
+        """ 计算敌方无人机被击毁的比例 """
+        _facilities_names = self.facilities.total_facilities
+        _airport_names = [_nm for _nm in _facilities_names if _nm.startswith('ua_')]
+        _euav_names = [_trk.id for _trk in objs_tracks]
+        
+        _all_airports_intrcpt_times = []
+        for _airport_nm in _airport_names:
+            _cur_intrcpt_estimator = def_brch.DefenceTimeEstimate(self.facilities.total_facilities[_airport_nm], objs_tracks)
+            _cur_intrcpt_infos = _cur_intrcpt_estimator.get_intercept_infos()
+            
+            _cur_intrcpt_times = [_info['time'] for _key, _info in _cur_intrcpt_infos.items()]
+            _all_airports_intrcpt_times.append(_cur_intrcpt_times)
+        
+        _all_airports_intrcpt_times = np.stack(_all_airports_intrcpt_times, axis=1)
+        _min_intrcpt_times = [np.min(_times) if not (None in _times) else None for _times in _all_airports_intrcpt_times]
+        
+        if None in _min_intrcpt_times:
+            return 1.0, _euav_names[_min_intrcpt_times.index(None)], None
+        else:
+            _min_intrcpt_idx = np.argmin(_min_intrcpt_times)
+            _min_intrcpt_time = _min_intrcpt_times[_min_intrcpt_idx]
+            _min_intrcpt_euav = _euav_names[_min_intrcpt_idx]
+            
+            _min_seconds = 0; _min_secs_score = 1.0
+            _max_seconds = 30 * 60; _max_secs_score = 0.0
+            
+            _levels_minmax_secs = np.stack([[_min_seconds] + self.config_parms.DEFEND_REMAIN_SECONDS, self.config_parms.DEFEND_REMAIN_SECONDS + [_max_seconds]], 1)   
+            _levels_minmax_scores = np.stack([[_min_secs_score] + self.config_parms.THREAT_SCORE_BY_DEFEND_REMAIN_SECONDS, self.config_parms.THREAT_SCORE_BY_DEFEND_REMAIN_SECONDS + [_max_secs_score]], 1)
+            
+            _level_idx = np.sum(_min_intrcpt_time >= np.array(self.config_parms.DEFEND_REMAIN_SECONDS))
+            _score= (_min_intrcpt_time - _levels_minmax_secs[_level_idx, 0]) / (_levels_minmax_secs[_level_idx, 1] - _levels_minmax_secs[_level_idx, 0]) \
+                * (_levels_minmax_scores[_level_idx, 1] - _levels_minmax_scores[_level_idx, 0]) + _levels_minmax_scores[_level_idx, 0]
+
+            return _score, _min_intrcpt_euav, _min_intrcpt_time
+
+    def _estimate_cluster_threat(self, objs_tracks:list[basic_units.ObjTracks], objs_behavs:list[SingleUavBehavior]):
+        """ 评估敌方无人机的威胁程度 （按照分组）"""
+        _cur_arrive_score = self._infer_arrive_at_times(objs_behavs)
+        _cur_quant_score = self._infer_cluster_quantity(objs_behavs)
+        _cur_intrcpt_score, _max_threat_euav, _intrcpt_time = self._calculate_intercept_time(objs_tracks)
+
+        # 使用反向联合威胁概率计算威胁程度
+        _census_threat_score = 1 - (1 - _cur_arrive_score) * (1 - _cur_quant_score) * (1 - _cur_intrcpt_score)
+        
+        return _census_threat_score
+    
+    def estimate_threats(self):
+        """ 评估敌方无人机的威胁程度 """
+        _enemy_clusters_threats = []
+        
+        for _cluster_i, _euav_idxs in enumerate(self.clusters_uav_idxs):
+            _cur_euavs = [self.uavs_behavs[_idx] for _idx in _euav_idxs]
+            _cur_euavs_tracks = [self.uavs_tracks[_idx] for _idx in _euav_idxs]
+            
+            _cur_threat_score = self._estimate_cluster_threat(_cur_euavs_tracks, _cur_euavs)
+            
+            if _cur_threat_score > self.config_parms.THREAT_SCORE_THRESHOLD:
+                _cur_dist_info = self._infer_dist_to_facilities(_cur_euavs)
+                
+                _threated_facilities = [_fac for _fac in _cur_dist_info if _fac is not None and _fac['distance'] < self.config_parms.ENDANGER_DISTANCE]
+            
+            _enemy_clusters_threats.append({
+                'cluster_idx': _cluster_i,
+                'euav_ids': [_trk.id for _trk in _cur_euavs_tracks],
+                'threat_score': _cur_threat_score,
+                'threated_facilities': _threated_facilities,})
+        
+        # import pdb; pdb.set_trace()
+        return _enemy_clusters_threats

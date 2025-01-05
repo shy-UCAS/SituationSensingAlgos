@@ -18,9 +18,10 @@ from formation_recognition import clusters_recognition as clus_rec
 from formation_recognition import formation_recognition as form_rec
 from formation_recognition import defence_breach_analyze as brch_anz
 from formation_recognition import defence_ability_analyze as def_eval
+from formation_recognition import intention_recognition as int_rec
 
 class TrajectoryExhibitor(object):
-    def __init__(self, file_path, coord_scale, interp_scale=3):
+    def __init__(self, file_path, coord_scale=1, interp_scale=3, scale_time=True):
         """
         初始化类，读取 Excel 文件并存储轨迹数据。
         
@@ -30,6 +31,7 @@ class TrajectoryExhibitor(object):
         self.file_path = file_path
         self.coord_scale = coord_scale
         self.interp_scale = interp_scale
+        self.scale_time = scale_time
         
         self.data = None
         self._load_data()
@@ -45,7 +47,19 @@ class TrajectoryExhibitor(object):
         self.time = self.data['time']  # 第一列为时间
         self.trajectories = self.data.iloc[:, 1:] # 后面的列为轨迹数据
         
-        _new_time = np.linspace(self.time.iloc[0], self.time.iloc[-1], len(self.time) * self.interp_scale)
+        if not self.scale_time:
+            _new_time = np.linspace(self.time.iloc[0], self.time.iloc[-1], len(self.time) * self.interp_scale)
+        else:
+            _old_interval = self.time.iloc[-1] - self.time.iloc[0]
+            _new_interval = _old_interval * self.interp_scale
+            
+            # import pdb; pdb.set_trace()
+            _new_time = np.linspace(self.time.iloc[0], self.time.iloc[0] + _new_interval, int(len(self.time) * self.interp_scale))
+            
+            _orig_time = self.time.to_numpy()
+            _orig_to_start_difftimes = _orig_time - _orig_time[0]
+            self.time = pd.Series(_orig_time[0] + _orig_to_start_difftimes * self.interp_scale)
+        
         _interp_coords_comb = np.zeros((len(_new_time), self.trajectories.shape[1]))
         
         for _col_i in range(self.trajectories.shape[1]):
@@ -164,12 +178,12 @@ if __name__ == "__main__":
     _root_dir = osp.dirname(osp.abspath(__file__))
     _man_trajs_dir = osp.join(_root_dir, 'data', 'manual_formation_recog')
 
-    _man_trajs_infos = [{'filename': 'fleet_form_trj01_shrink1.0.xlsx', 'scale': 7.0},
-                        {'filename': 'fleet_form_trj02_shrink1.5.xlsx', 'scale': 12.0},
-                        {'filename': 'fleet_form_trj03_shrink1.2.xlsx', 'scale': 14.0},]
+    _man_trajs_infos = [{'filename': 'fleet_form_trj01_shrink1.0.xlsx', 'scale': 25.0},
+                        {'filename': 'fleet_form_trj02_shrink1.5.xlsx', 'scale': 35.0},
+                        {'filename': 'fleet_form_trj03_shrink1.2.xlsx', 'scale': 40.0},]
     
     _test_idx = 1
-    processor = TrajectoryExhibitor(osp.join(_man_trajs_dir, _man_trajs_infos[_test_idx]['filename']), _man_trajs_infos[_test_idx]['scale'])
+    processor = TrajectoryExhibitor(osp.join(_man_trajs_dir, _man_trajs_infos[_test_idx]['filename']), interp_scale=_man_trajs_infos[_test_idx]['scale'])
     
     # 遍历轨迹点
     _trj_counter = 0
@@ -187,6 +201,7 @@ if __name__ == "__main__":
     
     _ring_breacher = brch_anz.DefRingBreach()
     _def_evaluator = def_eval.DefenseEvaluator()
+    _basic_facilities = basic_units.BasicFacilities()
 
     _prev_positions = None
     
@@ -215,7 +230,12 @@ if __name__ == "__main__":
 
         # analyze the defence ring breaching status
         _r1_clust_idxs, _r2_clust_idxs, _brch_frmt_str = _ring_breacher.infer_rings_breach_groups(_trj_objs_list, _cur_clust_split.last_clustering(), formated_output=True)
-
+        
+        if len(_trj_objs_list[0]) > 10:
+            _threat_evaluator = int_rec.ThreatEvaluator(_trj_objs_list, _basic_facilities)
+            _cur_clusters_threats = _threat_evaluator.estimate_threats()
+            print("Num threating clusters: %d, threating scores: %s" % (len(_cur_clusters_threats), [_th['threat_score'] for _th in _cur_clusters_threats]))
+        
         if len(_brch_frmt_str) > 0:
             # import pdb; pdb.set_trace()
             _def_results = _def_evaluator.evaluate_defense(_brch_frmt_str)

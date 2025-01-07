@@ -236,6 +236,13 @@ if __name__ == "__main__":
             _cur_clusters_threats = _threat_evaluator.estimate_threats()
             print("Num threating clusters: %d, threating scores: %s" % (len(_cur_clusters_threats), [_th['threat_score'] for _th in _cur_clusters_threats]))
         
+        if len(_trj_objs_list[0]) > 18:
+            _int_extrctr = int_rec.IntentFactorExtractor(_trj_objs_list, _basic_facilities, analyze_win=18)
+            _int_factor_knows = _int_extrctr.get_knows()
+            
+            _intent_inferior = int_rec.IntentionEvaluator([_k for _k in _int_factor_knows if _k != ''])
+            _intent_knows = _intent_inferior.get_knows()
+        
         if len(_brch_frmt_str) > 0:
             # import pdb; pdb.set_trace()
             _def_results = _def_evaluator.evaluate_defense(_brch_frmt_str)

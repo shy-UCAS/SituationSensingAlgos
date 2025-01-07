@@ -28,15 +28,11 @@ class DefenseEvaluator(object):
         
         # 从配置文件中读取总友方无人机数量
         cfg = configparser.ConfigParser()
-
         if config_file is None:
             # 假设 facilities.ini 位于 defence_evaluation.py 的上一级目录
             config_file = osp.join(osp.dirname(osp.abspath(__file__)), '..', 'facilities.ini')
-
         cfg.read(config_file)
-
         try:
-            # import pdb; pdb.set_trace()
             self.total_allocated_friendly_uavs = cfg.getint('DEFAULT', 'TOTAL_ALLOCATED_FRIENDLY_UAVS')
             logging.info(f"从配置文件读取到的总友方无人机数量: {self.total_allocated_friendly_uavs}")
         except (configparser.NoSectionError, configparser.NoOptionError, ValueError) as e:
@@ -54,32 +50,47 @@ class DefenseEvaluator(object):
         """
         if total_friendly_uavs is None:
             total_friendly_uavs = self.total_allocated_friendly_uavs
-        
         assignment = {}
         if not enemy_clusters:
             return assignment
         
-        # 按照圈层优先级排序：C1 > C2 > Others
-        # 添加一个集群距离我方目标的距离，然后按照距离进行排序
-        # （可以先将所在防御圈、距离我方机库的位置，都列到一个dataframe里面，然后按照几个列进行排序）
+        # 加载友方机库位置
+        facilities = basic_units.BasicFacilities()
+        friendly_depots = facilities.UAV_AIRPORTS_XYS  # 使用 UAV_AIRPORTS 作为机库位置
+        
+        # 为每个集群计算到最近机库的距离
+        for cluster in enemy_clusters:
+            if 'location' in cluster:
+                cluster['min_distance'] = min(
+                    np.linalg.norm(np.array(cluster['location']) - depot) 
+                    for depot in friendly_depots
+                )
+            else:
+                # 如果没有 location 信息，默认距离为无穷大
+                cluster['min_distance'] = float('inf')
+        
+        # 按照圈层优先级和距离排序：C1 > C2 > Others，并在同圈层内优先分配距离较近的集群
         sorted_clusters = sorted(
             enemy_clusters,
             key=lambda x: (
                 1 if x['breach_circle'] == 'C1' else 
                 2 if x['breach_circle'] == 'C2' else 
-                3)
+                3,
+                x['min_distance']
+            )
         )
         
-        # 初步分配以满足拦截率要求
+        # 初步分配以满足拦截率要求，同圈层内优先考虑距离较近的集群
         for cluster in sorted_clusters:
             swarm_no = cluster['swarm_no']
             breach = cluster['breach_circle']
             enemy_num = len(cluster['members'])
             required_rate = self.success_rates.get(breach, self.success_rates['Others'])
             
-            # 逐步分配友方无人机，直到满足拦截率要求
+            # 逐步分配友方无人机，直到满足拦截率要求或无人机用尽
             allocated = 0
-            while allocated <= total_friendly_uavs:
+            max_allocation = min(total_friendly_uavs, enemy_num * 2)  # 设置合理的上限，避免无限循环
+            while allocated <= max_allocation:
                 computed_rate = self.compute_interception_success_rate(allocated, enemy_num, swarm_no)
                 if computed_rate >= required_rate:
                     break
@@ -94,21 +105,6 @@ class DefenseEvaluator(object):
         
         # 分配剩余的友方无人机
         if total_friendly_uavs > 0:
-            # 加载友方机库位置
-            facilities = basic_units.BasicFacilities()
-            friendly_depots = facilities.UAV_AIRPORTS_XYS  # 使用 UAV_AIRPORTS 作为机库位置
-            
-            # 为每个集群计算到最近机库的距离
-            for cluster in sorted_clusters:
-                if 'location' in cluster:
-                    cluster['min_distance'] = min(
-                        np.linalg.norm(np.array(cluster['location']) - depot) 
-                        for depot in friendly_depots
-                    )
-                else:
-                    # 如果没有 location 信息，默认距离为无穷大
-                    cluster['min_distance'] = float('inf')
-            
             # 按照圈层优先级和距离排序
             remaining_sorted = sorted(
                 sorted_clusters,
@@ -117,40 +113,30 @@ class DefenseEvaluator(object):
                     2 if x['breach_circle'] == 'C2' else 
                     3,
                     x['min_distance']
-                ),
+                )
             )
             
-            # 逐步分配剩余的友方无人机，并检查是否满足拦截率
-            for cluster in remaining_sorted:
-                if total_friendly_uavs <= 0:
-                    break
-                swarm_no = cluster['swarm_no']
-                enemy_num = len(cluster['members'])
-                
-                # 尝试分配一个无人机并检查是否满足拦截率
-                computed_rate = self.compute_interception_success_rate(assignment.get(swarm_no, 0) + 1, enemy_num, swarm_no)
+            swarm_count = len(remaining_sorted)
+            if total_friendly_uavs > swarm_count:
+                # 计算每个蜂群分配的基本数量
+                base_allocation = total_friendly_uavs // swarm_count
+                remainder = total_friendly_uavs % swarm_count
 
-                if computed_rate >= self.success_rates.get(cluster['breach_circle'], self.success_rates['Others']):
-                    assignment[swarm_no] = assignment.get(swarm_no, 0) + 1
-                    total_friendly_uavs -= 1
-            
-            # 如果仍有剩余无人机，继续分配
-            while total_friendly_uavs > 0:
-                assigned_in_round = False
+                # 均分分配
                 for cluster in remaining_sorted:
-                    if total_friendly_uavs <= 0:
+                    swarm_no = cluster['swarm_no']
+                    allocation = base_allocation
+                    assignment[swarm_no] = assignment.get(swarm_no, 0) + allocation
+                    total_friendly_uavs -= allocation
+
+                # 根据圈层优先级和距离分配剩余无人机
+                for cluster in remaining_sorted:
+                    if remainder <= 0:
                         break
                     swarm_no = cluster['swarm_no']
-                    enemy_num = len(cluster['members'])
-                    
-                    # 分配一个无人机
-                    allocation = assignment.get(swarm_no, 0) + 1
-                    assignment[swarm_no] = allocation
+                    assignment[swarm_no] += 1
+                    remainder -= 1
                     total_friendly_uavs -= 1
-                    assigned_in_round = True
-                if not assigned_in_round:
-                    # 如果本轮未分配任何无人机，防止死循环
-                    break
         
         return assignment
     
@@ -191,6 +177,7 @@ class DefenseEvaluator(object):
         self.assignment = assignment  # 保存分配结果以便其他方法调用
         results = []
         total_allocated = 0
+
         for cluster in enemy_clusters:
             swarm_no = cluster['swarm_no']
             breach_circle = cluster.get('breach_circle', 'Unknown')
@@ -212,9 +199,10 @@ class DefenseEvaluator(object):
                 'breach_circle': breach_circle,
                 'enemy_uav_num': enemy_uav_num,
                 'friendly_uav_num': friendly_uav_num,
-                'success_rate': round(success_rate * 100, 6),  # 百分比表示，会导致取整
+                'success_rate': success_rate,
                 'comparison': comparison
             })
+        
         remaining_friendly_uavs = total_friendly_uavs - total_allocated
         evaluation = {
             'total_friendly_uavs': total_friendly_uavs,

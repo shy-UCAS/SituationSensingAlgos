@@ -2,6 +2,7 @@ import sys
 import os.path as osp
 from datetime import datetime
 import re
+import json
 
 import numpy as np
 import pandas as pd
@@ -12,7 +13,8 @@ from PyQt5 import QtCore
 from PyQt5.QtWidgets import (
     QApplication, QMainWindow, QVBoxLayout, QHBoxLayout, QWidget,
     QPushButton, QLineEdit, QLabel, QDoubleSpinBox, QRadioButton,
-    QButtonGroup, QFileDialog, QGroupBox, QGridLayout
+    QButtonGroup, QFileDialog, QGroupBox, QGridLayout,
+    QListWidget, QAbstractItemView, QInputDialog, QComboBox
 )
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_qt5agg import (
@@ -30,17 +32,17 @@ class SwarmIntentExhibitor(object):
         self.file_path = file_path
         self.file_data = None
 
-        self.uav_ids = None # 无人机的编号
-        self.uav_xys = None # 无人机的轨迹坐标
+        self.uav_ids = None  # 无人机的编号
+        self.uav_xys = None  # 无人机的轨迹坐标
 
-        self.radar_ids = None # 雷达的编号
-        self.radar_locs = None # 雷达的位置
+        self.radar_ids = None  # 雷达的编号
+        self.radar_locs = None  # 雷达的位置
 
-        self.airport_ids = None # 机场的编号
-        self.airport_locs = None # 机场的位置
+        self.airport_ids = None  # 机场的编号
+        self.airport_locs = None  # 机场的位置
 
-        self.hq_ids = None # 指挥所的编号
-        self.hq_locs = None # 指挥所的位置
+        self.hq_ids = None  # 指挥所的编号
+        self.hq_locs = None  # 指挥所的位置
 
         self.coord_scale = coord_scale
         self.interp_scale = interp_scale
@@ -49,7 +51,13 @@ class SwarmIntentExhibitor(object):
         self.uavs_tracks = self.pack_to_objtracks()
     
     def _load_data(self, vis=False):
-        self.file_data = pd.read_excel(self.file_path)
+        if self.file_path.endswith('.xlsx'):
+            self.file_data = pd.read_excel(self.file_path)
+        elif self.file_path.endswith('.json'):
+            with open(self.file_path, 'r', encoding='utf-8') as f:
+                self.file_data = json.load(f)
+        else:
+            raise ValueError("Unsupported file format")
 
         # 获取无人机的轨迹坐标
         self.uav_ids = np.unique([_col_nm.split('_')[0] for _col_nm in self.file_data.columns 
@@ -95,6 +103,12 @@ class SwarmIntentExhibitor(object):
         _hq_xs = np.array([self.file_data[_hq_id + "_x"] for _hq_id in self.hq_ids])
         _hq_ys = np.array([self.file_data[_hq_id + "_y"] for _hq_id in self.hq_ids])
         self.hq_locs = np.concatenate((_hq_xs[:, :1], _hq_ys[:, :1]), axis=1) * self.coord_scale
+
+        # 加载意图类型（如果存在）
+        if self.file_path.endswith('.json') and 'unit_types' in self.file_data:
+            self.unit_types = self.file_data['unit_types']
+        else:
+            self.unit_types = {}
     
     def time_range(self):
         return self.ts[0], self.ts[-1]
@@ -123,6 +137,9 @@ class SwarmIntentExhibitor(object):
                       'uavs': [
                           {'id': _trk.id, 'xs': _trk.xs.tolist(), 'ys': _trk.ys.tolist(), 'ts': _trk.ts.tolist()} for _trk in self.uavs_tracks
                       ]}
+        # 添加无人机意图类型到JSON
+        if hasattr(self, 'unit_types') and self.unit_types:
+            _json_dict['unit_types'] = self.unit_types
         return _json_dict
     
 class PlotCanvas(FigureCanvas):
@@ -193,8 +210,46 @@ class MainWindow(QMainWindow):
         right_layout = QVBoxLayout()
         main_layout.addLayout(right_layout)
 
+        # 添加单位选择列表（放在上方）
+        unit_group = QGroupBox("选择无人机单位")
+        unit_layout = QVBoxLayout()
+        unit_group.setLayout(unit_layout)
+        
+        self.unit_list_widget = QListWidget()
+        self.unit_list_widget.setSelectionMode(QAbstractItemView.SingleSelection)
+        unit_layout.addWidget(self.unit_list_widget)
+        right_layout.addWidget(unit_group)
+
+        # 添加意图类型选择组（放在下方）
+        type_selection_group = QGroupBox("设置意图类型") 
+        type_selection_layout = QVBoxLayout()
+        type_selection_group.setLayout(type_selection_layout)
+
+        self.type_combo_box = QComboBox()
+        self.type_combo_box.addItems([
+            "突破（Penetration）",
+            "迂回（Detouring）", 
+            "侦察（Reconnaissance）",
+            "侦察打击（Search and Strike）",
+            "快速通过（Fast Pass）",
+            "接力打击（Sequential Attack）",
+            "协同打击（Salvo Attack）"
+        ])
+        type_selection_layout.addWidget(QLabel("选择意图类型:"))
+        type_selection_layout.addWidget(self.type_combo_box)
+
+        self.apply_type_button = QPushButton("应用到选中单位")
+        self.apply_type_button.clicked.connect(self.apply_type_to_selected)
+        type_selection_layout.addWidget(self.apply_type_button)
+
+        self.apply_all_type_button = QPushButton("应用到所有单位")
+        self.apply_all_type_button.clicked.connect(self.apply_type_to_all)
+        type_selection_layout.addWidget(self.apply_all_type_button)
+
+        right_layout.addWidget(type_selection_group)
+
         # Time range group
-        time_group = QGroupBox("Set Time Range")
+        time_group = QGroupBox("设置时间范围")
         time_layout = QHBoxLayout()
         time_group.setLayout(time_layout)
 
@@ -202,43 +257,22 @@ class MainWindow(QMainWindow):
         self.start_spinbox.setRange(0, 100)
         self.start_spinbox.setValue(0)
         self.start_spinbox.setSingleStep(0.1)
-        self.start_spinbox.setSuffix(" s")
-        time_layout.addWidget(QLabel("Start:"))
+        self.start_spinbox.setSuffix(" 秒")
+        time_layout.addWidget(QLabel("起始:"))
         time_layout.addWidget(self.start_spinbox)
 
         self.end_spinbox = QDoubleSpinBox()
         self.end_spinbox.setRange(0, 100)
         self.end_spinbox.setValue(10)
         self.end_spinbox.setSingleStep(0.1)
-        self.end_spinbox.setSuffix(" s")
-        time_layout.addWidget(QLabel("End:"))
+        self.end_spinbox.setSuffix(" 秒")
+        time_layout.addWidget(QLabel("结束:"))
         time_layout.addWidget(self.end_spinbox)
 
-        self.update_plot_button = QPushButton("Draw Plot(&D)")
+        self.update_plot_button = QPushButton("绘制图表(&D)")
         self.update_plot_button.clicked.connect(self.update_plot)
         time_layout.addWidget(self.update_plot_button)
         right_layout.addWidget(time_group)
-
-        # Radio button group
-        type_group = QGroupBox("Select Type")
-        type_layout = QVBoxLayout()
-        type_group.setLayout(type_layout)
-
-        self.radio_group = QButtonGroup()
-        type_names = ['突破（Penetration）',
-                      '迂回（Detouring）',
-                      '侦察（Reconnaissance）',
-                      '侦察打击（Search and Strike）',
-                      '快速通过（Fast Pass）',
-                      '接力打击（Sequential Attack）',
-                      '协同打击（Salvo Attack）']
-        
-        for i in range(7):
-            radio_button = QRadioButton(f"{type_names[i]} (&{i+1})")
-            self.radio_group.addButton(radio_button, i)
-            type_layout.addWidget(radio_button)
-        self.radio_group.buttons()[0].setChecked(True)
-        right_layout.addWidget(type_group)        
 
         # File selection layout
         file_layout = QHBoxLayout()
@@ -246,7 +280,7 @@ class MainWindow(QMainWindow):
         self.file_line_edit.setReadOnly(False)
         file_layout.addWidget(self.file_line_edit)
 
-        self.open_file_button = QPushButton("Open File(&F)")
+        self.open_file_button = QPushButton("打开文件(&F)")
         self.open_file_button.clicked.connect(self.open_file)
         file_layout.addWidget(self.open_file_button)
         right_layout.addLayout(file_layout)
@@ -257,7 +291,7 @@ class MainWindow(QMainWindow):
         self.save_line_edit.setReadOnly(False)
         save_layout.addWidget(self.save_line_edit)
 
-        self.save_button = QPushButton("Save Data(&S)")
+        self.save_button = QPushButton("保存数据(&S)")
         self.save_button.clicked.connect(self.save_data)
         save_layout.addWidget(self.save_button)
         right_layout.addLayout(save_layout)
@@ -284,6 +318,21 @@ class MainWindow(QMainWindow):
 
         self.plot_canvas.plot(self.intent_exhibitor, start=_start_t, end=_stop_t)
 
+        # 填充无人机列表
+        self.populate_unit_list()
+
+    def populate_unit_list(self):
+        """填充无人机列表到界面中"""
+        self.unit_list_widget.clear()
+        for uav_id in self.intent_exhibitor.uav_ids:
+            # 检查无人机是否已有意图类型
+            intent_type = self.intent_exhibitor.unit_types.get(uav_id, "")
+            if intent_type:
+                display_text = f"{uav_id} ({intent_type})"
+            else:
+                display_text = uav_id
+            self.unit_list_widget.addItem(display_text)
+
     def update_plot(self):
         _trjs_start_t, _trjs_end_t = self.intent_exhibitor.time_range()
 
@@ -296,10 +345,10 @@ class MainWindow(QMainWindow):
         if start < end:
             self.plot_canvas.plot(self.intent_exhibitor, start=start, end=end)
         else:
-            self.statusBar().showMessage("Start time must be less than end time", 5000)
+            self.statusBar().showMessage("开始时间必须小于结束时间", 5000)
 
     def open_file(self):
-        file_path, _ = QFileDialog.getOpenFileName(self, "Open File", osp.dirname(self.default_data_file), "All Files (*.*)", )
+        file_path, _ = QFileDialog.getOpenFileName(self, "打开文件", osp.dirname(self.default_data_file), "All Files (*.*)", )
 
         if file_path:
             self.file_line_edit.setText(file_path)
@@ -311,29 +360,70 @@ class MainWindow(QMainWindow):
         self.end_spinbox.setValue(_stop_t)
 
         self.plot_canvas.plot(self.intent_exhibitor, start=_start_t, end=_stop_t)
-    
+
+        # 重新填充无人机列表
+        self.populate_unit_list()
+
     def save_data(self):
         # 这里使用json字符串的方式进行保存
         _base_json = self.intent_exhibitor.pack_to_jsondict()
-
+    
         _label_start_time = self.start_spinbox.value()
         _label_end_time = self.end_spinbox.value()
-
-        _base_json['label_start_time'] = _label_start_time
-        _base_json['label_end_time'] = _label_end_time
-
-        _label_intent_id = self.radio_group.checkedId()
-        _label_intent_type = self.radio_group.checkedButton().text()
-        _base_json['label_intent_id'] = _label_intent_id
-        _base_json['label_intent_type'] = _label_intent_type
-
+    
+        # 添加无人机意图类型到JSON
+        if hasattr(self.intent_exhibitor, 'unit_types') and self.intent_exhibitor.unit_types:
+            _base_json['unit_types'] = self.intent_exhibitor.unit_types
         # QtCore.pyqtRemoveInputHook()
         # import pdb; pdb.set_trace()
-        file_path, _ = QFileDialog.getOpenFileName(self, "Open File", osp.dirname(self.default_save_file), "Json files (*.json)", )
+        file_path, _ = QFileDialog.getSaveFileName(self, "保存文件", osp.dirname(self.default_save_file), "Json files (*.json)")
+        if file_path:
+            with open(file_path, 'w', encoding='utf-8') as f:
+                json.dump(_base_json, f, ensure_ascii=False, indent=4)
+            self.update_status_bar(f"数据已保存到 {file_path}")
     
     def update_status_bar(self, message:str):
-        _cur_datetime = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%2f")
-        self.statusBar().showMessage("%s:%s" % (_cur_datetime, message), 5000)
+        _cur_datetime = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")[:-4]  # 只保留前两位微秒
+        self.statusBar().showMessage(f"{_cur_datetime}: {message}", 5000)
+
+    def apply_type_to_selected(self):
+        """将选择的类型应用到选中的无人机"""
+        selected_items = self.unit_list_widget.selectedItems()
+        if not selected_items:
+            self.update_status_bar("请先选择一个无人机单位")
+            return
+        
+        selected_item = selected_items[0]
+        selected_text = selected_item.text()
+        # 提取无人机ID
+        uav_id = selected_text.split(' ')[0]
+        selected_type = self.type_combo_box.currentText()
+        
+        if not hasattr(self.intent_exhibitor, 'unit_types'):
+            self.intent_exhibitor.unit_types = {}
+        
+        self.intent_exhibitor.unit_types[uav_id] = selected_type
+        # 更新列表项显示
+        display_text = f"{uav_id} ({selected_type})"
+        selected_item.setText(display_text)
+        self.update_status_bar(f"已为无人机 {uav_id} 设置类型为 {selected_type}")
+    
+    def apply_type_to_all(self):
+        """将选择的类型应用到所有无人机"""
+        selected_type = self.type_combo_box.currentText()
+        
+        if not hasattr(self.intent_exhibitor, 'unit_types'):
+            self.intent_exhibitor.unit_types = {}
+        
+        for index in range(self.unit_list_widget.count()):
+            item = self.unit_list_widget.item(index)
+            uav_id = item.text().split(' ')[0]
+            self.intent_exhibitor.unit_types[uav_id] = selected_type
+            # 更新列表项显示
+            display_text = f"{uav_id} ({selected_type})"
+            item.setText(display_text)
+        
+        self.update_status_bar(f"已为所有无人机设置类型为 {selected_type}")
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)

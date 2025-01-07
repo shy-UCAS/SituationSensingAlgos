@@ -807,7 +807,6 @@ class IntentionEvaluator:
         for query, probability in _result.items():
             if probability > 0.0:
                 print(query, probability)
-        # import pdb; pdb.set_trace()
 
     def get_knows(self):
         return self.infered_knows
@@ -873,7 +872,7 @@ class ThreatEvaluator(MultiUavsBehavior):
             _dist_labels, _dist2facilities, _dist_chg_ratios = _uav_behav.distance_to_facilities(self.facilities, True)
             
             _cur_closing_facility = None
-            _cur_to_facility_dist = None
+            _cur_to_facility_dist = np.inf
             _cur_closing_ratio = None
             
             for _iter, (_dist_lbl, _dist2fac, _chg_ratio) in enumerate(zip(_dist_labels, _dist2facilities, _dist_chg_ratios)):
@@ -959,9 +958,10 @@ class ThreatEvaluator(MultiUavsBehavior):
         
         return _census_threat_score
     
-    def estimate_threats(self):
+    def estimate_threats(self, formated_output=False):
         """ 评估敌方无人机的威胁程度 """
         _enemy_clusters_threats = []
+        _formated_output = ""
         
         for _cluster_i, _euav_idxs in enumerate(self.clusters_uav_idxs):
             _cur_euavs = [self.uavs_behavs[_idx] for _idx in _euav_idxs]
@@ -980,5 +980,7 @@ class ThreatEvaluator(MultiUavsBehavior):
                 'threat_score': _cur_threat_score,
                 'threated_facilities': _threated_facilities,})
         
-        # import pdb; pdb.set_trace()
-        return _enemy_clusters_threats
+        if formated_output:
+            return _enemy_clusters_threats, _formated_output
+        else:
+            return _enemy_clusters_threats

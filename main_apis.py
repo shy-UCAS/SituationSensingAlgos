@@ -105,6 +105,23 @@ def ring_breach_infer(uav_coords_str, clustering_str):
 
     return _formated_output
 
+def infer_enemy_intention(uav_coords_str, clustering_str, facilities_str):
+    """ 基于输入的无人机轨迹数据、无人机分群情况、我方设施位置分布，给出敌方无人机集群中各分组的意图信息 """
+    _formated_output = ""
+    return _formated_output
+
+def infer_enemy_threats(uav_coords_str, clustering_str, facilities_str):
+    """ 基于输入的无人机轨迹数据、无人机分群情况、我方的设施位置、发生攻击的时间，给出敌方无人机集群中各分组的威胁信息 """
+    _formated_output = ""
+    return _formated_output
+
+def infer_defend_status(uav_coords_str, clustering_str, facilities_str, total_uavs_num=50):
+    """ 基于输入的敌方无人机轨迹、分组情况，以及、我方的防御圈位置，给出我方对敌防御的情况 """
+    _formated_output = ""
+    return _formated_output
+
+
+
 if __name__ == '__main__':
     from test_main02_dynamic_trajectories_recog import TrajectoryExhibitor
 
@@ -122,7 +139,7 @@ if __name__ == '__main__':
 
     if test_sw == 1:
          # 测试无人机集群分组方法和队形识别方法
-        input_json_dict = {'euav1': {'xs': processor.trajectories['uav1_x'].tolist(),
+        euavs_trjs_json_dict = {'euav1': {'xs': processor.trajectories['uav1_x'].tolist(),
                                      'ys': processor.trajectories['uav1_y'].tolist(),
                                      'ts': np.arange(len(processor.trajectories['uav1_x'])).tolist()},
                            'euav2': {'xs': processor.trajectories['uav2_x'].tolist(),
@@ -138,15 +155,28 @@ if __name__ == '__main__':
                                      'ys': processor.trajectories['uav5_y'].tolist(),
                                      'ts': np.arange(len(processor.trajectories['uav5_x'])).tolist()},}
         
-        input_json_str = json.dumps(input_json_dict) # 包含无人机轨迹的json字符串
+        enemy_trajectories_str = json.dumps(euavs_trjs_json_dict) # 包含无人机轨迹的json字符串
 
-        print(input_json_str)
-        clustering_result = get_uavs_clusters(input_json_str)
+        print(enemy_trajectories_str)
+        clustering_result = get_uavs_clusters(enemy_trajectories_str)
         print(clustering_result)
 
-        formation_result = recog_fleet_formtype(input_json_str, clustering_result)
+        formation_result = recog_fleet_formtype(enemy_trajectories_str, clustering_result)
         print(formation_result)
 
         # 基于无人机轨迹、分组情况，给出各无人机的突破情况
-        formated_breaches = ring_breach_infer(input_json_str, clustering_result)
+        formated_breaches = ring_breach_infer(enemy_trajectories_str, clustering_result)
         print(formated_breaches)
+
+        # 基于无人机轨迹、分组情况，给出敌方各个分组的意图信息
+        formated_intent = infer_enemy_intention(enemy_trajectories_str, clustering_result)
+        print(formated_intent)
+
+        # 基于无人机轨迹、分组情况、我方设施位置，给出敌方各个分组的威胁信息（威胁程度、威胁设施、预计攻击发生时间）
+        formated_threats = infer_enemy_threats(enemy_trajectories_str, clustering_result)
+        print(formated_threats)
+
+        # 基于敌方无人机轨迹、分组情况、我方防御圈分布，给出我方防御情况（圈层防御比例、防御消耗无人机数量）
+        formated_defstatus = infer_defend_status(enemy_trajectories_str, clustering_result)
+        print(formated_defstatus)
+

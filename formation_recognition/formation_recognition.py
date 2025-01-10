@@ -241,7 +241,9 @@ class FormationRecognizer(object):
 
         if not (pretrained_weights is None):
             self.model_weights = pretrained_weights
-            self.model.load_state_dict(torch.load(self.model_weights))
+            self.model.load_state_dict(torch.load(self.model_weights, weights_only=True))
+
+            # self.model.load_state_dict(torch.load(self.model_weights))
         else:
             self.model_weights = None
 

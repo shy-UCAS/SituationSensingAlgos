@@ -43,7 +43,7 @@ class GlobalConfigs(object):
         # 防御和威胁相关配置参数
         self.THREAT_SCORE_THRESHOLD = 0.8
         self.ONE_VS_ONE_ANHL_RATIO = 0.8
-        self.ENDANGER_DISTANCE = 150
+        self.ENDANGER_DISTANCE = np.inf
         
         self.ATTACK_REMAIN_SECONDS = [20, 40, 100]
         self.THREAT_SCORE_BY_ATTACK_REMAIN_SECONDS = [0.9, 0.5, 0.2]
@@ -334,8 +334,8 @@ class ObjTracks(object):
         if len(self.xs) < lookback:
             return None
 
-        dx = np.mean(np.divide(self.xs[-lookback:] - self.xs[-1-lookback:-1], self.ts[-lookback:] - self.ts[-1-lookback:-1]))
-        dy = np.mean(np.divide(self.ys[-lookback:] - self.ys[-1-lookback:-1], self.ts[-lookback:] - self.ts[-1-lookback:-1]))
+        dx = np.mean(np.divide(self.xs[-lookback:] - self.xs[-1-lookback:-1], np.array(self.ts[-lookback:]) -np.array( self.ts[-1-lookback:-1])))
+        dy = np.mean(np.divide(self.ys[-lookback:] - self.ys[-1-lookback:-1], np.array(self.ts[-lookback:]) -np.array( self.ts[-1-lookback:-1])))
 
         return np.sqrt(dx**2 + dy**2)
     
@@ -343,8 +343,8 @@ class ObjTracks(object):
         if len(self.xs) < lookback:
             return None
 
-        dx = np.divide(self.xs[-lookback:] - self.xs[-1-lookback:-1], self.ts[-lookback:] - self.ts[-1-lookback:-1])
-        dy = np.divide(self.ys[-lookback:] - self.ys[-1-lookback:-1], self.ts[-lookback:] - self.ts[-1-lookback:-1])
+        dx = np.divide(self.xs[-lookback:] - self.xs[-1-lookback:-1], np.array(self.ts[-lookback:]) -np.array( self.ts[-1-lookback:-1]))
+        dy = np.divide(self.ys[-lookback:] - self.ys[-1-lookback:-1], np.array(self.ts[-lookback:]) -np.array( self.ts[-1-lookback:-1]))
 
         return np.sqrt(dx**2 + dy**2)
 

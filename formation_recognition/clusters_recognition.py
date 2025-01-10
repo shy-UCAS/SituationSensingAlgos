@@ -106,7 +106,7 @@ class SplitClusters(object):
         
         _calcu_time = time.time() - _tic
 
-        print("Clustering time: {:.3f}s".format(_calcu_time))
+        print("SplitClusters time: {:.3f}s".format(_calcu_time))
     
     def last_clustering(self):
         return self.clusters_list[-1].labels_

@@ -4,7 +4,7 @@
 import os, os.path as osp
 import re
 import glob
-
+import json
 import numpy as np
 import pandas as pd
 
@@ -17,6 +17,7 @@ from matplotlib.animation import FuncAnimation
 from formation_recognition import basic_units
 from formation_recognition import intention_recognition as int_rec
 
+from collections import defaultdict
 class SwarmIntentExhibitor(object):
     def __init__(self, file_path, coord_scale=1, interp_scale=3, vis=False):
         self.file_path = file_path
@@ -164,7 +165,7 @@ class SwarmIntentExhibitor(object):
 
 if __name__ == "__main__":
     swarm_intent_dir = r"data\manual_intention_recog"
-    swarm_intent_file = osp.join(swarm_intent_dir, "fast_pass_through_no03.xlsx")
+    swarm_intent_file = osp.join(swarm_intent_dir, "fast_pass_through_no01.xlsx")
     # swarm_intent_file = osp.join(swarm_intent_dir, "ext_search_no01.xlsx")
 
     # 参数说明：
@@ -177,7 +178,13 @@ if __name__ == "__main__":
     # lookback_start: 起始时间点，表示从输入轨迹的末尾，向前回溯lookback_start个轨迹点
     # lookback_len: 回溯长度，表示从lookback_start时间点开始，回溯lookback_len个轨迹点
     # vis: 是否可视化轨迹（完整轨迹点使用绿色虚线表示，pack_to_objtracks提取的轨迹点使用红色实线表示）
+
     test_objtracks = intent_exh.pack_to_objtracks(lookback_start=10, lookback_len=30, vis=True)
+    # for track in test_objtracks:
+    #     plt.plot(track.xs, track.ys, label=track.id)  # 使用每个轨迹的 `xs` 和 `ys` 绘制
+    # plt.legend()
+    # plt.show()
+
     print("Objects speeds: %s" % ([_obj.move_speed() for _obj in test_objtracks]))
 
     test_facilities = basic_units.BasicFacilities()
@@ -260,9 +267,77 @@ if __name__ == "__main__":
         # 对一组无人机的单机和多机行为特性进行综合分析
         int_extrctr = int_rec.IntentFactorExtractor(test_objtracks, test_facilities, analyze_win=18)
         factor_knows = int_extrctr.get_knows()
+        print("factor_knows",json.dumps(factor_knows, indent=4, ensure_ascii=False))
         
         intent_inferor = int_rec.IntentionEvaluator([_k for _k in factor_knows if _k != ''])
         intent_knows = intent_inferor.get_knows()
+
+        _clustering_knowstr = []
+        # 查找所有包含 'in_group' 或 'tight_fleet' 的条目
+        for know in factor_knows:
+            if 'in_group' in know or 'tight_fleet' in know:
+                _clustering_knowstr.append(know)
+        # print("_clustering_knowstr\n", _clustering_knowstr)
+
+        # 1. 提取聚类中的成员
+        clustering_info = {}
+        for clustering in _clustering_knowstr:
+            if "in_group" in clustering:
+                # 提取成员
+                match = re.search(r'in_group\((.*?)\)', clustering)
+                if match:
+                    cluster_members = match.group(1).split(',')
+                    cluster_members = [member.strip() for member in cluster_members]
+                    clustering_info["group"] = cluster_members
+        print("clustering_info:",clustering_info)
+        #
+        # # 2. 提取 intent_knows 中每个无人机的意图和概率
+        # intent_info = defaultdict(list)
+        # for intent in intent_knows:
+        #     match = re.search(r"(\d+\.\d+)::(\w+)\((\w+), (\w+)\)", intent)
+        #     if match:
+        #         probability = float(match.group(1))
+        #         action = match.group(2)
+        #         uav_id = match.group(3)
+        #         intent_info[uav_id].append((action, probability))
+        #
+        # # 3. 统计每个聚类中的意图及其概率，按概率排序
+        # clustered_intent_info = defaultdict(list)
+        #
+        # # 假设有一个聚类 group
+        # for cluster_id, cluster_members in clustering_info.items():
+        #     for uav_id in cluster_members:
+        #         if uav_id in intent_info:
+        #             for action, probability in intent_info[uav_id]:
+        #                 clustered_intent_info[cluster_id].append((uav_id, action, probability))
+        #
+        # # 对每个聚类按概率从高到低排序
+        # output = []
+        #
+        # for cluster_id, intents in clustered_intent_info.items():
+        #     # 排序并合并相同的意图，取最大概率
+        #     action_probs = defaultdict(float)  # 存储每个意图对应的最大概率
+        #     for uav_id, action, probability in intents:
+        #         action_probs[action] = max(action_probs[action], probability)
+        #
+        #     # 将每个聚类的意图和概率按从高到低排序
+        #     sorted_intents = sorted(action_probs.items(), key=lambda x: x[1], reverse=True)
+        #
+        #     formatted_intents = {
+        #         "swarm_no": f"swarm{cluster_id + 1}",
+        #         "members": cluster_members,
+        #         "intentions": [action for action, _ in sorted_intents],
+        #         "probabilities": [prob for _, prob in sorted_intents]
+        #     }
+        #     output.append(formatted_intents)
+        #
+        # # 打印结果
+        # for item in output:
+        #     print(f"Cluster: {item['swarm_no']}")
+        #     print(f"Members: {item['members']}")
+        #     for intention, prob in zip(item["intentions"], item["probabilities"]):
+        #         print(f"  {intention} with probability {prob}")
+        #     print("\n")
 
     elif test_sw == 4:
         pass

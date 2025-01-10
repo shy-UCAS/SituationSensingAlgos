@@ -8,10 +8,10 @@ import time
 import numpy as np
 from scipy.signal import find_peaks
 import matplotlib.pyplot as plt
-
+from pprint import pprint
 from problog.program import PrologFile, PrologString
 from problog import get_evaluatable
-
+import  json
 from formation_recognition import basic_units
 from formation_recognition import clusters_recognition as clus_rec
 from formation_recognition import formation_recognition as form_rec
@@ -638,6 +638,7 @@ class IntentFactorExtractor(object):
         
         _clustering, _, _form_typenames = self.mult_behavs.infer_cluster_formations()
         _clustering_knowstr = self._pack_cluster_formations(_clustering, _form_typenames)
+        print("_clustering_knowstr\n",_clustering_knowstr)
         _uavs_sgl_facts.append(_clustering_knowstr)
 
         return _uavs_sgl_facts
@@ -687,7 +688,7 @@ class IntentFactorExtractor(object):
     
     def _pack_directing_to_facilities(self, uav_id, directed_ts, directed_facs, directed_scores, last_n_direct=5):
         if np.sum([_fac is not None for _fac in directed_facs]) <= 0:
-            return ""
+            return "0.9::targeting_facility(%s, none, %.3f)." % (uav_id, directed_ts[-1])
 
         # import pdb; pdb.set_trace()
         # 找出最后N次朝向中包含的设施名称集合
@@ -700,7 +701,10 @@ class IntentFactorExtractor(object):
         _directed_knows_list = []
         for _fac in _last_n_direct_facs:
             for _iter in range(len(directed_ts)):
-                if _fac in directed_facs[_iter]:
+                if directed_facs[_iter] is not None and _fac in directed_facs[_iter]:
+                    # 执行相应操作
+
+                    # if _fac in directed_facs[_iter]:
                     _fmt_str = "%.3f::targeting_facility(%s, %s, %.3f)."  \
                         % (directed_scores[_iter][directed_facs[_iter].index(_fac)], uav_id, _fac, directed_ts[_iter])
                     _directed_knows_list.append(_fmt_str)
@@ -749,7 +753,7 @@ class IntentFactorExtractor(object):
         if _num_clusters == 1:
             if _clusters_counts[0] >= 2:
                 _in_cluster_eidxs = np.where(clustering_labels == _uniq_cluster_labels[0])[0]
-                _fmt_strs = ["0.9::tight_fleet(%s)." % (self.tracks[_idx]) for _idx in _in_cluster_eidxs]
+                _fmt_strs = ["0.9::tight_fleet(%s)." % (self.tracks[_idx].id) for _idx in _in_cluster_eidxs]
 
                 if _clusters_counts[0] == 2:
                     _form_type = 'pair'
@@ -762,7 +766,7 @@ class IntentFactorExtractor(object):
             for _c_label, _c_count in zip(_uniq_cluster_labels, _clusters_counts):
                 if _c_count >= 2:
                     _in_cluster_eidxs = np.where(clustering_labels == _c_label)[0]
-                    _fmt_strs = ["0.9::tight_fleet(%s)." % (self.tracks[_idx]) for _idx in _in_cluster_eidxs]
+                    _fmt_strs = ["0.9::tight_fleet(%s)." % (self.tracks[_idx].id) for _idx in _in_cluster_eidxs]
 
                     if _c_count == 2:
                         _form_type = 'pair'
@@ -801,12 +805,18 @@ class IntentionEvaluator:
         _prolog_knowstr_combined = "\n".join(self.situation_knowledges) + "\n" + self.intent_infer_rules
         _problog_program = PrologString(_prolog_knowstr_combined)
         _result = get_evaluatable(name='sddx').create_from(_problog_program).evaluate()
+        # try:
+        #     _result = get_evaluatable(name='sddx').create_from(_problog_program).evaluate()
+        # except:
+        #     import pdb; pdb.set_trace()
 
         print("Rules based Intention inference time: %.3fsecs" % (time.time() - _tic))
 
         for query, probability in _result.items():
-            if probability > 0.0:
-                print(query, probability)
+            print(query, probability)
+            # if probability > 0.0:
+            #     print(query, probability)
+        return _result
 
     def get_knows(self):
         return self.infered_knows
@@ -827,7 +837,7 @@ class ThreatEvaluator(MultiUavsBehavior):
         """ 根据无人机到达各设施的时间评估威胁等级 """
         _arrive2facilities_times = []
         _facilities_names = [_key for _key in self.facilities.total_facilities.keys()]
-        
+
         for _uav_behav in objs_behavs:
             _arrive_bools, _arrive_times = _uav_behav.estimate_arrive_time(self.facilities)
             if np.sum(_arrive_bools) > 0:
@@ -845,7 +855,7 @@ class ThreatEvaluator(MultiUavsBehavior):
 
         _valid_arrive_times = [_time['time'] for _time in _arrive2facilities_times if _time is not None]
         if len(_valid_arrive_times) <= 0:
-            return 0.0
+            return 0.0 , None
         elif len(_valid_arrive_times) == 1:
             _min_arrive_time = _valid_arrive_times[0]
         else:
@@ -861,7 +871,7 @@ class ThreatEvaluator(MultiUavsBehavior):
         _score= (_min_arrive_time - _levels_minmax_secs[_level_idx, 0]) / (_levels_minmax_secs[_level_idx, 1] - _levels_minmax_secs[_level_idx, 0]) \
             * (_levels_minmax_scores[_level_idx, 1] - _levels_minmax_scores[_level_idx, 0]) + _levels_minmax_scores[_level_idx, 0]
         
-        return _score
+        return _score,_min_arrive_time
     
     def _infer_dist_to_facilities(self, objs_behavs:list[SingleUavBehavior]):
         """ 基于无人机与设施的距离和距离变化快慢评估威胁等级 """
@@ -949,36 +959,49 @@ class ThreatEvaluator(MultiUavsBehavior):
 
     def _estimate_cluster_threat(self, objs_tracks:list[basic_units.ObjTracks], objs_behavs:list[SingleUavBehavior]):
         """ 评估敌方无人机的威胁程度 （按照分组）"""
-        _cur_arrive_score = self._infer_arrive_at_times(objs_behavs)
+        _cur_arrive_score, _min_arrive_time = self._infer_arrive_at_times(objs_behavs)
         _cur_quant_score = self._infer_cluster_quantity(objs_behavs)
         _cur_intrcpt_score, _max_threat_euav, _intrcpt_time = self._calculate_intercept_time(objs_tracks)
 
         # 使用反向联合威胁概率计算威胁程度
         _census_threat_score = 1 - (1 - _cur_arrive_score) * (1 - _cur_quant_score) * (1 - _cur_intrcpt_score)
         
-        return _census_threat_score
+        return _census_threat_score,_min_arrive_time
     
     def estimate_threats(self, formated_output=False):
         """ 评估敌方无人机的威胁程度 """
         _enemy_clusters_threats = []
         _formated_output = ""
-        
+        _cur_threat_score=0.0
+        _threated_facilities=[]
+
         for _cluster_i, _euav_idxs in enumerate(self.clusters_uav_idxs):
             _cur_euavs = [self.uavs_behavs[_idx] for _idx in _euav_idxs]
             _cur_euavs_tracks = [self.uavs_tracks[_idx] for _idx in _euav_idxs]
             
-            _cur_threat_score = self._estimate_cluster_threat(_cur_euavs_tracks, _cur_euavs)
+            _cur_threat_score , _min_arrive_time = self._estimate_cluster_threat(_cur_euavs_tracks, _cur_euavs)
+
+            if _cur_threat_score <= 0.4:
+                _threat_level = "low"
+            elif 0.5 <= _cur_threat_score <= 0.8:
+                _threat_level = "medium"
+            else:
+                _threat_level = "high"
+
             
             if _cur_threat_score > self.config_parms.THREAT_SCORE_THRESHOLD:
                 _cur_dist_info = self._infer_dist_to_facilities(_cur_euavs)
-                
+                # print("_cur_dist_info", json.dumps(_cur_dist_info, indent=4, ensure_ascii=False))
                 _threated_facilities = [_fac for _fac in _cur_dist_info if _fac is not None and _fac['distance'] < self.config_parms.ENDANGER_DISTANCE]
             
             _enemy_clusters_threats.append({
                 'cluster_idx': _cluster_i,
                 'euav_ids': [_trk.id for _trk in _cur_euavs_tracks],
                 'threat_score': _cur_threat_score,
-                'threated_facilities': _threated_facilities,})
+                'threat_level': _threat_level,
+                'threated_facilities': _threated_facilities,
+                'threat_time': _min_arrive_time,
+            })
         
         if formated_output:
             return _enemy_clusters_threats, _formated_output

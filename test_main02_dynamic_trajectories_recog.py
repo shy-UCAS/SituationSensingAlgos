@@ -5,7 +5,7 @@ import glob
 
 import numpy as np
 import pandas as pd
-
+import json
 from scipy.spatial import ConvexHull
 from scipy.interpolate import interp1d
 from scipy.ndimage import gaussian_filter1d
@@ -77,12 +77,13 @@ class TrajectoryExhibitor(object):
         以 yield 的方式逐行返回轨迹点。
         每次返回一个时间步的所有目标的位置坐标。
         """
+        print("nunm:",len(self.trajectories))
         for idx, row in self.trajectories.iterrows():
             time_step = self.time.iloc[idx]
             # 每个时间步目标的位置列表 (目标1_x, 目标1_y, 目标2_x, 目标2_y, ...)
             yield time_step, row.values.reshape(-1, 2)  # 每两个值为一个目标的 (x, y)
     
-    def animate_trajectory(self, clusterings=None, formtypes=None, interval=300):
+    def animate_trajectory(self, clusterings=None, formtypes=None, interval=30):
         """
         动画显示所有目标的运动轨迹。
         """
@@ -169,7 +170,9 @@ class TrajectoryExhibitor(object):
         # 动画帧
         frames = list(self.get_points())
 
-        ani = FuncAnimation(fig, update, frames=enumerate(frames), interval=interval, blit=True)
+        # ani = FuncAnimation(fig, update, frames=enumerate(frames), interval=interval, blit=True)
+        ani = FuncAnimation(fig, update, frames=enumerate(frames), interval=interval, blit=True, save_count=100)
+
         plt.show()
 
 # 使用示例
@@ -182,9 +185,22 @@ if __name__ == "__main__":
                         {'filename': 'fleet_form_trj02_shrink1.5.xlsx', 'scale': 35.0},
                         {'filename': 'fleet_form_trj03_shrink1.2.xlsx', 'scale': 40.0},]
     
-    _test_idx = 1
+    _test_idx = 2
     processor = TrajectoryExhibitor(osp.join(_man_trajs_dir, _man_trajs_infos[_test_idx]['filename']), interp_scale=_man_trajs_infos[_test_idx]['scale'])
-    
+    # # 显示processor中的轨迹
+    # fig, ax = plt.subplots(figsize=(10, 10))
+    # ax.set_xlabel("X Position")
+    # ax.set_ylabel("Y Position")
+    # ax.set_title("UAV Trajectories")
+    #
+    # # 获取每个时间步的无人机轨迹
+    # for time_step, positions in processor.get_points():
+    #     # 假设每个时间步包含多个目标的位置 (positions为一个2D数组，每一行是一个目标的(x, y)位置)
+    #     for pos in positions:
+    #         ax.plot(pos[0], pos[1], 'o', markersize=5)  # 绘制每个时间步的目标位置
+    # # 显示图形
+    # plt.show()
+
     # 遍历轨迹点
     _trj_counter = 0
     _trj_objs_list = []
@@ -206,7 +222,9 @@ if __name__ == "__main__":
     _prev_positions = None
     
     for time_step, positions in processor.get_points():
-        # print(f"Time: {time_step}, Positions: {positions}")
+        print("\n")
+        print(f"Time: {time_step}, Positions: {positions}")
+
         if _trj_counter <= 0:
             _num_objs = len(positions)
             _trj_objs_list = [basic_units.ObjTracks([_pos[0]], [_pos[1]], ts=[time_step], id="euav%02d" % (_iter + 1)) for _iter, _pos in enumerate(positions)]
@@ -219,7 +237,8 @@ if __name__ == "__main__":
         # add new positions to existing trajectories
         for _p_iter, _pos in enumerate(positions):
             _trj_objs_list[_p_iter].append_location(_pos[0], _pos[1], t=time_step)
-        
+
+        # 通过聚类分析计算编队分组
         _cur_clust_split = clus_rec.SplitClusters(_trj_objs_list, spatial_scale=_man_trajs_infos[_test_idx]['scale'])
         _clustering_lists.append(_cur_clust_split.last_clustering())
         
@@ -234,18 +253,18 @@ if __name__ == "__main__":
         if len(_trj_objs_list[0]) > 10:
             _threat_evaluator = int_rec.ThreatEvaluator(_trj_objs_list, _basic_facilities)
             _cur_clusters_threats = _threat_evaluator.estimate_threats()
-            print("Num threating clusters: %d, threating scores: %s" % (len(_cur_clusters_threats), [_th['threat_score'] for _th in _cur_clusters_threats]))
-        
+            # print("Num threating clusters: %d, threating scores: %s , uav_id:%s " % (len(_cur_clusters_threats), [_th['threat_score'] for _th in _cur_clusters_threats],[_id['euav_ids'] for _id in _cur_clusters_threats]))
+            print("_cur_clusters_threats", json.dumps(_cur_clusters_threats, indent=4, ensure_ascii=False))
         if len(_trj_objs_list[0]) > 18:
             _int_extrctr = int_rec.IntentFactorExtractor(_trj_objs_list, _basic_facilities, analyze_win=18)
             _int_factor_knows = _int_extrctr.get_knows()
-            
+
             _intent_inferior = int_rec.IntentionEvaluator([_k for _k in _int_factor_knows if _k != ''])
             _intent_knows = _intent_inferior.get_knows()
-        
-        if len(_brch_frmt_str) > 0:
-            # import pdb; pdb.set_trace()
-            _def_results = _def_evaluator.evaluate_defense(_brch_frmt_str)
+        #
+        # if len(_brch_frmt_str) > 0:
+        #     # import pdb; pdb.set_trace()
+        #     _def_results = _def_evaluator.evaluate_defense(_brch_frmt_str)
 
         _formtypes_lists.append(_clust_formtypes)
         _formtype_names_lists.append(_clust_formtype_names)
@@ -254,6 +273,9 @@ if __name__ == "__main__":
         
         _prev_positions = positions
         _trj_counter = _trj_counter + 1
-    
+
+    # for obj in _trj_objs_list:
+    #     print(f"ID: {obj.id}, X: {obj.xs}, Y: {obj.ys}")
+
     # 播放动画
     processor.animate_trajectory(_clustering_lists, _formtype_names_lists)

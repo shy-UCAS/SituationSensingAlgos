@@ -291,8 +291,7 @@ if __name__ == '__main__':
 
         # 基于无人机轨迹、分组情况，给出敌方各个分组的意图信息
         formated_intent = infer_enemy_intention(enemy_trajectories_str,test_facilities)
-        print("formated_intent",formated_intent)
-
+        print(formated_intent)
         # # 基于无人机轨迹、分组情况、我方设施位置，给出敌方各个分组的威胁信息（威胁程度、威胁设施、预计攻击发生时间）
         # formated_threats = infer_enemy_threats(enemy_trajectories_str,test_facilities)
         # print("formated_threats\n", json.dumps(formated_threats, indent=4, ensure_ascii=False))
